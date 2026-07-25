@@ -1,14 +1,18 @@
-import { Activity, BarChart3, Database, DollarSign, FileText, LineChart, PieChart, Users } from "lucide-react"
+import { Activity, BarChart3, Database, DollarSign, FileText, LineChart, PieChart, RotateCw, Users } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
+import { useState } from "react"
 import { Link } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { PageInlineSlot, PageTitleSlot } from "@/components/layout/PageTitleSlot"
 import api from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { formatCurrency, useCurrencyDisplayName } from "@/lib/currency"
+import { useToast } from "@/components/ui/toast"
 
 interface PlatformStats {
   users: number
@@ -49,6 +53,19 @@ export default function AdminOverview() {
   const { language } = useI18n()
   const currency = useCurrencyDisplayName()
   const copy = language === "zh" ? zhCopy : enCopy
+  const { success, error } = useToast()
+  const [restartDialogOpen, setRestartDialogOpen] = useState(false)
+  const [restartConfirmation, setRestartConfirmation] = useState("")
+  const restartMutation = useMutation({
+    mutationFn: async () => (await api.post("/restart", { confirmation: "确认重启" })).data,
+    onSuccess: () => {
+      setRestartDialogOpen(false)
+      setRestartConfirmation("")
+      success(copy.restartScheduled)
+      window.setTimeout(() => window.location.reload(), 3000)
+    },
+    onError: (err) => error(apiErrorMessage(err, copy.restartFailed)),
+  })
   const { data: stats } = useQuery<PlatformStats>({
     queryKey: ["stats", "admin"],
     queryFn: async () => {
@@ -84,13 +101,44 @@ export default function AdminOverview() {
           <h1 className="text-3xl font-bold">{copy.title}</h1>
           <div className="mt-2 text-sm text-muted-foreground">{copy.subtitle}</div>
         </div>
-        <Button asChild className="gap-2 self-start">
-          <Link to="/dashboard/admin-logs">
-            <FileText size={16} />
-            {copy.auditLogs}
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2 self-start">
+          <Button variant="destructive" className="gap-2" onClick={() => setRestartDialogOpen(true)}>
+            <RotateCw size={16} />
+            {copy.restart}
+          </Button>
+          <Button asChild className="gap-2">
+            <Link to="/dashboard/admin-logs">
+              <FileText size={16} />
+              {copy.auditLogs}
+            </Link>
+          </Button>
+        </div>
       </div>
+
+      <Dialog open={restartDialogOpen} onOpenChange={(open) => {
+        if (!restartMutation.isPending) {
+          setRestartDialogOpen(open)
+          if (!open) setRestartConfirmation("")
+        }
+      }}>
+        <DialogContent showCloseButton={!restartMutation.isPending}>
+          <DialogHeader>
+            <DialogTitle>{copy.restartTitle}</DialogTitle>
+            <DialogDescription>{copy.restartDescription}</DialogDescription>
+          </DialogHeader>
+          <label className="space-y-2 text-sm font-medium">
+            <span>{copy.restartPrompt}</span>
+            <Input autoFocus value={restartConfirmation} onChange={(event) => setRestartConfirmation(event.target.value)} placeholder="确认重启" disabled={restartMutation.isPending} />
+          </label>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRestartDialogOpen(false)} disabled={restartMutation.isPending}>{copy.cancel}</Button>
+            <Button variant="destructive" onClick={() => restartMutation.mutate()} disabled={restartConfirmation !== "确认重启" || restartMutation.isPending}>
+              <RotateCw size={16} className={restartMutation.isPending ? "animate-spin" : ""} />
+              {restartMutation.isPending ? copy.restarting : copy.restart}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <PageTitleSlot />
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -470,6 +518,14 @@ const zhCopy = {
   outputTokens: "输出 Token",
   noData: "暂无数据",
   auditLogs: "日志查看",
+  restart: "重启后端",
+  restartTitle: "确认重启后端",
+  restartDescription: "服务会短暂不可用，正在处理的请求会在 30 秒内优雅结束。",
+  restartPrompt: "请输入“确认重启”继续",
+  restartScheduled: "服务正在重启，页面将自动刷新。",
+  restartFailed: "无法启动服务重启",
+  restarting: "正在重启",
+  cancel: "取消",
 }
 
 const enCopy: AdminOverviewCopy = {
@@ -488,6 +544,19 @@ const enCopy: AdminOverviewCopy = {
   outputTokens: "Output Tokens",
   noData: "No data",
   auditLogs: "Audit Logs",
+  restart: "Restart backend",
+  restartTitle: "Restart backend",
+  restartDescription: "The service will be briefly unavailable while in-flight requests are drained for up to 30 seconds.",
+  restartPrompt: "Type 确认重启 to continue",
+  restartScheduled: "The service is restarting. This page will refresh automatically.",
+  restartFailed: "Could not start service restart",
+  restarting: "Restarting",
+  cancel: "Cancel",
+}
+
+function apiErrorMessage(err: unknown, fallback: string) {
+  const response = err as { response?: { data?: { error?: unknown } }; message?: unknown }
+  return String(response.response?.data?.error || response.message || fallback)
 }
 
 const chartColors = ["#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#7c3aed", "#0891b2"]
