@@ -1,3 +1,3 @@
-module github.com/WindyPear-Team/veloce-web
+module github.com/veloce-ailab/veloce-web
 
 go 1.26.3
