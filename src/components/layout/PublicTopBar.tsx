@@ -2,11 +2,11 @@ import { Link } from "react-router-dom"
 import type { PublicSettings } from "@/lib/public-settings"
 import { parseTopNavItems } from "@/lib/public-settings"
 
-export function PublicTopBar({ settings }: { settings: PublicSettings }) {
+export function PublicTopBar({ settings, fixed = false }: { settings: PublicSettings; fixed?: boolean }) {
   const topNavItems = parseTopNavItems(settings.top_nav_items)
 
   return (
-    <header className="border-b px-4 sm:px-6">
+    <header className={fixed ? "fixed inset-x-0 top-0 z-50 border-b bg-background px-4 sm:px-6" : "border-b px-4 sm:px-6"}>
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4">
         <Link to="/" className="flex min-w-0 items-center gap-3">
           {settings.icon_url && (

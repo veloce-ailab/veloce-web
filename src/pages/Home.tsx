@@ -19,6 +19,7 @@ export default function Home() {
     },
   })
   const publicSettings = withPublicSettingsDefaults(settings)
+  const homeIframeURL = publicSettings.home_iframe_url.trim()
   const hasToken = Boolean(localStorage.getItem("token"))
   const labels =
     language === "zh"
@@ -32,6 +33,17 @@ export default function Home() {
     }
   }, [])
 
+  if (homeIframeURL) {
+    return (
+      <div className="flex h-screen flex-col overflow-hidden bg-background">
+        <PublicTopBar settings={publicSettings} fixed />
+        <main className="min-h-0 flex-1 pt-16">
+          <iframe title="home" src={homeIframeURL} className="block h-full w-full border-0" />
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <PublicTopBar settings={publicSettings} />
@@ -43,21 +55,17 @@ export default function Home() {
       )}
 
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col p-4 sm:p-6 lg:p-8">
-        {publicSettings.home_iframe_url ? (
-          <iframe title="home" src={publicSettings.home_iframe_url} className="min-h-[70vh] w-full flex-1 rounded-md border" />
-        ) : (
-          <div className="flex flex-1 items-center justify-center">
-            <div className="w-full max-w-xl space-y-6 text-center">
-              <h1 className="text-4xl font-bold">{publicSettings.site_name}</h1>
-              <Button className="gap-2" asChild>
-                <Link to={hasToken ? "/dashboard" : "/login"}>
-                  {hasToken ? labels.dashboard : labels.login}
-                  <ArrowRight size={16} />
-                </Link>
-              </Button>
-            </div>
+        <div className="flex flex-1 items-center justify-center">
+          <div className="w-full max-w-xl space-y-6 text-center">
+            <h1 className="text-4xl font-bold">{publicSettings.site_name}</h1>
+            <Button className="gap-2" asChild>
+              <Link to={hasToken ? "/dashboard" : "/login"}>
+                {hasToken ? labels.dashboard : labels.login}
+                <ArrowRight size={16} />
+              </Link>
+            </Button>
           </div>
-        )}
+        </div>
       </main>
 
       {publicSettings.footer_text && (

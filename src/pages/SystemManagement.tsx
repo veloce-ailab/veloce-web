@@ -459,7 +459,6 @@ const sensitiveSystemSettingsFields = [
   "hcaptcha_secret",
   "smtp_password",
   "oidc_client_secret",
-  "sensitive_words",
   "payment_yipay_key",
   "payment_openpayment_key",
   "payment_wechat_private_key",
@@ -1225,7 +1224,7 @@ export default function SystemManagement({ section = "general", initialTab }: { 
               <ToggleField label={copy.ssrfProtectionEnabled} checked={form.ssrf_protection_enabled} onChange={(checked) => updateField("ssrf_protection_enabled", checked)} />
               <ToggleField label={copy.ssrfAllowPrivateNetworks} checked={form.ssrf_allow_private_networks} onChange={(checked) => updateField("ssrf_allow_private_networks", checked)} />
             </div>
-            <TextareaField label={copy.sensitiveWords} value={form.sensitive_words} placeholder={copy.sensitiveWordsReplacePlaceholder} onChange={(value) => updateField("sensitive_words", value)} />
+            <TextareaField label={copy.sensitiveWords} value={form.sensitive_words} placeholder={copy.sensitiveWordsPlaceholder} onChange={(value) => updateField("sensitive_words", value)} />
             <TextareaField label={copy.ssrfAllowedHosts} value={form.ssrf_allowed_hosts} placeholder={copy.ssrfAllowedHostsPlaceholder} onChange={(value) => updateField("ssrf_allowed_hosts", value)} />
           </div>
         </SettingsPanel>
