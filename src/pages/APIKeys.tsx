@@ -3,7 +3,7 @@ import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Copy, Plus, RotateCcw, RotateCw, Save, Trash } from "lucide-react"
-import api from "@/lib/api"
+import api, { apiURL } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,6 +22,7 @@ import { useConfirmDialog } from "@/components/ui/confirm-dialog"
 import type { PublicSettings } from "@/lib/public-settings"
 import { isPersonalMode, withPublicSettingsDefaults } from "@/lib/public-settings"
 import { formatCurrency } from "@/lib/currency"
+import { APIKeyImportDialog } from "@/components/api-key-import-dialog"
 
 interface UserChannelCatalog {
   id: number
@@ -352,8 +353,9 @@ function APIKeyRow({
   personalMode: boolean
   currency: string
 }) {
-  const { t } = useI18n()
+  const { language, t } = useI18n()
   const [isConfigOpen, setIsConfigOpen] = useState(false)
+  const [isImportConfigOpen, setIsImportConfigOpen] = useState(false)
   const allowedChannels = numberArray(apiKey.allowed_user_channels)
   const allowedModels = stringArray(apiKey.allowed_models)
   const allowedIPs = stringArray(apiKey.allowed_ips)
@@ -424,6 +426,9 @@ function APIKeyRow({
         </Button>
         <Button variant="outline" size="icon" onClick={() => onRotate(apiKey.id)} title={t("settings.rotateKey")}>
           <RotateCw size={16} />
+        </Button>
+        <Button variant="outline" size="sm" className="shrink-0" onClick={() => setIsImportConfigOpen(true)} disabled={!apiKey.api_key}>
+          {language === "zh" ? "导入配置" : "Import config"}
         </Button>
       </div>
 
@@ -514,8 +519,25 @@ function APIKeyRow({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <APIKeyImportDialog
+        open={isImportConfigOpen}
+        onOpenChange={setIsImportConfigOpen}
+        apiKey={apiKey.api_key}
+        apiKeyName={apiKey.name}
+        baseURL={apiBaseURLForConfig()}
+        onCopy={onCopy}
+        language={language}
+      />
     </div>
   )
+}
+
+function apiBaseURLForConfig() {
+  const configured = apiURL("/").replace(/\/+$/, "")
+  if (configured) {
+    return configured
+  }
+  return typeof window === "undefined" ? "http://localhost:8080" : window.location.origin
 }
 
 function RestrictionPicker({
