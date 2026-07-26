@@ -65,6 +65,33 @@ interface SessionTask {
 const SESSION_TASK_TOOL_NAMES = new Set(["tasks_plan", "tasks_update", "tasks_list"])
 const ASK_USER_TOOL_NAME = "ask_user"
 
+const CHAT_TOOL_GROUP_KEYS = ["workspace", "web", "sites", "tasks", "ask_user", "memory"] as const
+type ChatToolGroupKey = typeof CHAT_TOOL_GROUP_KEYS[number]
+
+function chatToolGroupItems(copy: ChatCopy): { key: ChatToolGroupKey; label: string; hint: string }[] {
+  return [
+    { key: "workspace", label: copy.toolGroupWorkspace, hint: copy.toolGroupWorkspaceHint },
+    { key: "web", label: copy.toolGroupWeb, hint: copy.toolGroupWebHint },
+    { key: "sites", label: copy.toolGroupSites, hint: copy.toolGroupSitesHint },
+    { key: "tasks", label: copy.toolGroupTasks, hint: copy.toolGroupTasksHint },
+    { key: "ask_user", label: copy.toolGroupAskUser, hint: copy.toolGroupAskUserHint },
+    { key: "memory", label: copy.toolGroupMemory, hint: copy.toolGroupMemoryHint },
+  ]
+}
+
+function normalizeDisabledToolGroups(value: unknown): ChatToolGroupKey[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+  const groups: ChatToolGroupKey[] = []
+  for (const item of value) {
+    if (typeof item === "string" && (CHAT_TOOL_GROUP_KEYS as readonly string[]).includes(item) && !groups.includes(item as ChatToolGroupKey)) {
+      groups.push(item as ChatToolGroupKey)
+    }
+  }
+  return groups
+}
+
 interface AskUserPromptOption {
   label: string
   description?: string
@@ -207,6 +234,7 @@ interface ChatSession {
   temperature?: number | null
   reasoning_effort?: string
   auto_compress_context: boolean
+  disabled_tool_groups: ChatToolGroupKey[]
   created_at: string
   updated_at: string
 }
@@ -2460,6 +2488,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
               temperature: session.temperature ?? null,
               reasoning_effort: session.reasoning_effort || "",
               auto_compress_context: session.auto_compress_context,
+              disabled_tool_groups: session.disabled_tool_groups || [],
               stream: false,
             })
             const serverSession = normalizeSession(res.data?.session)
@@ -2503,6 +2532,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
               temperature: session.temperature ?? null,
               reasoning_effort: session.reasoning_effort || "",
               auto_compress_context: session.auto_compress_context,
+              disabled_tool_groups: session.disabled_tool_groups || [],
               stream: false,
             })
             const content = typeof res.data?.message?.content === "string" ? res.data.message.content : ""
@@ -2575,6 +2605,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
               temperature: session.temperature ?? null,
               reasoning_effort: session.reasoning_effort || "",
               auto_compress_context: session.auto_compress_context,
+              disabled_tool_groups: session.disabled_tool_groups || [],
               stream: true,
             }),
             signal: controller.signal,
@@ -4511,6 +4542,36 @@ export default function Chat({ variant = "basic" }: ChatProps) {
                       aria-label={copy.autoCompressContext}
                     />
                   </div>
+                  <div className="space-y-3 rounded-md border px-3 py-2.5">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">{copy.toolGroupsTitle}</div>
+                      <div className="text-xs text-muted-foreground">{copy.toolGroupsHint}</div>
+                    </div>
+                    {chatToolGroupItems(copy).map((group) => {
+                      const disabledGroups = currentSession?.disabled_tool_groups || []
+                      const enabled = !disabledGroups.includes(group.key)
+                      return (
+                        <div key={group.key} className="flex items-center justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="text-sm">{group.label}</div>
+                            <div className="text-xs text-muted-foreground">{group.hint}</div>
+                          </div>
+                          <Switch
+                            checked={enabled}
+                            onCheckedChange={(checked) => {
+                              if (!currentSession) return
+                              updateSession(currentSession.id, (session) => {
+                                const current = session.disabled_tool_groups || []
+                                const next = checked ? current.filter((item) => item !== group.key) : current.includes(group.key) ? current : [...current, group.key]
+                                return { ...session, disabled_tool_groups: next }
+                              }, { persist: true })
+                            }}
+                            aria-label={group.label}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -6267,6 +6328,7 @@ function readStoredSessions(storeKey = sessionsStoreKey, includeLegacy = true): 
       connector_approval_mode: "manual",
       connector_command_prefixes: [],
       auto_compress_context: true,
+      disabled_tool_groups: [],
       created_at: now,
       updated_at: now,
     }]
@@ -6442,6 +6504,7 @@ async function saveAdvancedSessionSnapshot(session: ChatSession): Promise<ChatSe
     temperature: safeSession.temperature ?? null,
     reasoning_effort: safeSession.reasoning_effort || "",
     auto_compress_context: safeSession.auto_compress_context,
+    disabled_tool_groups: safeSession.disabled_tool_groups || [],
     messages: safeSession.messages.map((message) => ({
       id: message.id,
       role: message.role,
@@ -7052,6 +7115,7 @@ function normalizeSession(value: unknown): ChatSession | null {
     temperature: value.temperature === null || value.temperature === undefined ? null : Number(value.temperature),
     reasoning_effort: stringFromUnknown(value.reasoning_effort) || "",
     auto_compress_context: value.auto_compress_context !== false,
+    disabled_tool_groups: normalizeDisabledToolGroups(value.disabled_tool_groups),
     created_at: typeof value.created_at === "string" ? value.created_at : new Date().toISOString(),
     updated_at: typeof value.updated_at === "string" ? value.updated_at : new Date().toISOString(),
   }
@@ -7436,6 +7500,7 @@ function createSession(input: { agentID?: string; modelName?: string } = {}): Ch
     temperature: null,
     reasoning_effort: "",
     auto_compress_context: true,
+    disabled_tool_groups: [],
     created_at: now,
     updated_at: now,
   }
@@ -8450,6 +8515,20 @@ const chatCopyKeys = {
   askUserTitle: "chat.askUserTitle",
   askUserConfirm: "chat.askUserConfirm",
   askUserCustomPlaceholder: "chat.askUserCustomPlaceholder",
+  toolGroupsTitle: "chat.toolGroupsTitle",
+  toolGroupsHint: "chat.toolGroupsHint",
+  toolGroupWorkspace: "chat.toolGroupWorkspace",
+  toolGroupWorkspaceHint: "chat.toolGroupWorkspaceHint",
+  toolGroupWeb: "chat.toolGroupWeb",
+  toolGroupWebHint: "chat.toolGroupWebHint",
+  toolGroupSites: "chat.toolGroupSites",
+  toolGroupSitesHint: "chat.toolGroupSitesHint",
+  toolGroupTasks: "chat.toolGroupTasks",
+  toolGroupTasksHint: "chat.toolGroupTasksHint",
+  toolGroupAskUser: "chat.toolGroupAskUser",
+  toolGroupAskUserHint: "chat.toolGroupAskUserHint",
+  toolGroupMemory: "chat.toolGroupMemory",
+  toolGroupMemoryHint: "chat.toolGroupMemoryHint",
   expandToolCall: "chat.expandToolCall",
   toolStatusOk: "chat.toolStatusOk",
   toolStatusRunning: "chat.toolStatusRunning",
