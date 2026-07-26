@@ -4,7 +4,7 @@ import type { ChangeEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNo
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { createPortal } from "react-dom"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { Activity, ArrowDown, ArrowUp, Bot, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileDiff, FileText, Folder, FolderOpen, FolderPlus, GitBranch, GitCompareArrows, Hand, Menu, MessageSquarePlus, Monitor, MoreHorizontal, PanelRightClose, PanelRightOpen, Paperclip, Pencil, Plus, Quote, RefreshCw, Search, Send, Server, Settings, ShieldCheck, Sparkles, Trash2, Upload, User, X } from "lucide-react"
+import { Activity, ArrowDown, ArrowUp, Bot, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileDiff, FileText, Folder, FolderOpen, FolderPlus, GitBranch, GitCompareArrows, Hand, ListTodo, Loader2, Menu, MessageSquarePlus, Monitor, MoreHorizontal, PanelRightClose, PanelRightOpen, Paperclip, Pencil, Plus, Quote, RefreshCw, Search, Send, Server, Settings, ShieldCheck, Sparkles, Trash2, Upload, User, X } from "lucide-react"
 import api, { apiURL, getAuthToken, isDesktopTarget } from "@/lib/api"
 import { ChatSetupGuide } from "@/components/onboarding/SetupGuides"
 import { useI18n, type TranslationKey } from "@/lib/i18n"
@@ -49,6 +49,61 @@ interface ChatToolCall {
 interface ChatContentPart {
   round?: number
   content: string
+}
+
+type SessionTaskStatus = "pending" | "in_progress" | "completed" | "skipped"
+
+interface SessionTask {
+  id: string
+  position: number
+  title: string
+  description?: string
+  status: SessionTaskStatus
+  note?: string
+}
+
+const SESSION_TASK_TOOL_NAMES = new Set(["tasks_plan", "tasks_update", "tasks_list"])
+
+function normalizeSessionTasks(value: unknown): SessionTask[] | null {
+  if (!value || typeof value !== "object" || !Array.isArray((value as { tasks?: unknown }).tasks)) {
+    return null
+  }
+  const tasks: SessionTask[] = []
+  for (const item of (value as { tasks: unknown[] }).tasks) {
+    if (!item || typeof item !== "object") {
+      continue
+    }
+    const raw = item as Record<string, unknown>
+    const id = typeof raw.id === "string" ? raw.id : ""
+    const title = typeof raw.title === "string" ? raw.title.trim() : ""
+    if (!id || !title) {
+      continue
+    }
+    const status = typeof raw.status === "string" && ["pending", "in_progress", "completed", "skipped"].includes(raw.status)
+      ? raw.status as SessionTaskStatus
+      : "pending"
+    tasks.push({
+      id,
+      position: typeof raw.position === "number" && Number.isFinite(raw.position) ? raw.position : tasks.length + 1,
+      title,
+      description: typeof raw.description === "string" ? raw.description : undefined,
+      status,
+      note: typeof raw.note === "string" ? raw.note : undefined,
+    })
+  }
+  tasks.sort((a, b) => a.position - b.position)
+  return tasks
+}
+
+function sessionTasksFromToolCall(name: unknown, status: unknown, result: unknown): SessionTask[] | null {
+  if (typeof name !== "string" || !SESSION_TASK_TOOL_NAMES.has(name) || status !== "ok" || typeof result !== "string") {
+    return null
+  }
+  try {
+    return normalizeSessionTasks(JSON.parse(result))
+  } catch {
+    return null
+  }
 }
 
 interface ChatMessage {
@@ -548,6 +603,8 @@ export default function Chat({ variant = "basic" }: ChatProps) {
   const environmentWorkspaceButtonRef = useRef<HTMLButtonElement | null>(null)
   const [composerOverlayHeight, setComposerOverlayHeight] = useState(0)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
+  const [sessionTasks, setSessionTasks] = useState<SessionTask[]>([])
+  const [isTaskPlanOpen, setIsTaskPlanOpen] = useState(true)
   const [editingMessageID, setEditingMessageID] = useState("")
   const [editingText, setEditingText] = useState("")
   const [editingAttachments, setEditingAttachments] = useState<ChatAttachment[]>([])
@@ -1197,6 +1254,43 @@ export default function Chat({ variant = "basic" }: ChatProps) {
     setShowJumpToLatest(false)
     requestAnimationFrame(() => scrollMessagesToLatest("auto"))
   }, [currentSession?.id])
+
+  useEffect(() => {
+    setSessionTasks([])
+    setIsTaskPlanOpen(true)
+    const sessionID = currentSession?.id
+    if (!isAdvanced || !sessionID) {
+      return
+    }
+    let cancelled = false
+    api.get(`/user/advanced-chat/sessions/${encodeURIComponent(sessionID)}/tasks`)
+      .then((res) => {
+        if (!cancelled) {
+          setSessionTasks(normalizeSessionTasks(res.data) || [])
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [isAdvanced, currentSession?.id])
+
+  // Assistant and agent-group runs surface tool calls through run polling
+  // instead of the completion stream, so mirror task updates from there too.
+  useEffect(() => {
+    const details = activeRun?.tool_call_details
+    if (!isAdvanced || !details || details.length === 0) {
+      return
+    }
+    for (let index = details.length - 1; index >= 0; index--) {
+      const call = details[index]
+      const tasks = sessionTasksFromToolCall(call.name, call.status, call.result)
+      if (tasks) {
+        setSessionTasks(tasks)
+        return
+      }
+    }
+  }, [isAdvanced, activeRun?.tool_call_details])
 
   useEffect(() => {
     const container = messagesScrollElement()
@@ -2324,6 +2418,14 @@ export default function Chat({ variant = "basic" }: ChatProps) {
             const content = typeof res.data?.message?.content === "string" ? res.data.message.content : ""
             const finalParts = normalizeContentParts(res.data?.message?.content_parts, content)
             const finalToolCalls = normalizeToolCalls(res.data?.tool_call_details)
+            for (let index = finalToolCalls.length - 1; index >= 0; index--) {
+              const call = finalToolCalls[index]
+              const finalTasks = sessionTasksFromToolCall(call.name, call.status, call.result)
+              if (finalTasks) {
+                setSessionTasks(finalTasks)
+                break
+              }
+            }
             const assistantMessage = createMessage("assistant", content || copy.emptyResponse, finalToolCalls)
             updateSession(session.id, (current) => ({
               ...current,
@@ -2416,6 +2518,10 @@ export default function Chat({ variant = "basic" }: ChatProps) {
               }
               upsertAssistantMessage((message) => ({ ...message, content: statusText }))
             } else if (event.type === "tool_call") {
+              const streamedTasks = sessionTasksFromToolCall(event.payload.name, event.payload.status, event.payload.result)
+              if (streamedTasks) {
+                setSessionTasks(streamedTasks)
+              }
               const nextToolCalls = normalizeToolCalls([event.payload])
               if (nextToolCalls.length === 0) {
                 return
@@ -3971,6 +4077,14 @@ export default function Chat({ variant = "basic" }: ChatProps) {
                       <span className="sr-only">{copy.jumpToLatest}</span>
                     </Button>
                   )}
+                  {sessionTasks.length > 0 && (
+                    <SessionTaskPlanPanel
+                      tasks={sessionTasks}
+                      copy={copy}
+                      isOpen={isTaskPlanOpen}
+                      onToggle={() => setIsTaskPlanOpen((open) => !open)}
+                    />
+                  )}
                   {pendingConnectorApprovals.length > 0 && (
                     <PendingConnectorApprovalsPanel
                       tasks={pendingConnectorApprovals}
@@ -5193,6 +5307,81 @@ function ConnectorApprovalControls({
         <Check size={14} />
         {copy.approveConnectorTask}
       </Button>
+    </div>
+  )
+}
+
+function sessionTaskStatusLabel(status: SessionTaskStatus, copy: ChatCopy): string {
+  switch (status) {
+    case "in_progress":
+      return copy.taskStatusInProgress
+    case "completed":
+      return copy.taskStatusCompleted
+    case "skipped":
+      return copy.taskStatusSkipped
+    default:
+      return copy.taskStatusPending
+  }
+}
+
+function SessionTaskPlanPanel({
+  tasks,
+  copy,
+  isOpen,
+  onToggle,
+}: {
+  tasks: SessionTask[]
+  copy: ChatCopy
+  isOpen: boolean
+  onToggle: () => void
+}) {
+  if (tasks.length === 0) {
+    return null
+  }
+  const completedCount = tasks.filter((task) => task.status === "completed" || task.status === "skipped").length
+  return (
+    <div className="overflow-hidden rounded-md border border-border bg-background shadow-sm">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        title={copy.taskPlanToggle}
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <ListTodo size={14} className="shrink-0 text-primary" />
+          <span className="truncate">{copy.taskPlan}</span>
+          <span className="shrink-0 tabular-nums text-muted-foreground">{completedCount}/{tasks.length}</span>
+        </span>
+        <ChevronDown size={14} className={cn("shrink-0 text-muted-foreground transition-transform", !isOpen && "-rotate-90")} />
+      </button>
+      {isOpen && (
+        <ul className="max-h-44 space-y-1.5 overflow-y-auto border-t border-border px-3 py-2">
+          {tasks.map((task) => (
+            <li key={task.id} className="flex items-start gap-2 text-xs" title={task.note || task.description || undefined}>
+              {task.status === "completed" ? (
+                <Check size={13} className="mt-0.5 shrink-0 text-primary" />
+              ) : task.status === "in_progress" ? (
+                <Loader2 size={13} className="mt-0.5 shrink-0 animate-spin text-primary" />
+              ) : task.status === "skipped" ? (
+                <X size={13} className="mt-0.5 shrink-0 text-muted-foreground" />
+              ) : (
+                <span className="mt-[3px] h-2.5 w-2.5 shrink-0 rounded-full border border-muted-foreground/50" aria-hidden />
+              )}
+              <span
+                className={cn(
+                  "min-w-0 flex-1 break-words",
+                  (task.status === "completed" || task.status === "skipped") && "text-muted-foreground line-through",
+                  task.status === "in_progress" && "font-medium text-foreground"
+                )}
+              >
+                {task.title}
+              </span>
+              <span className="sr-only">{sessionTaskStatusLabel(task.status, copy)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
@@ -8041,6 +8230,12 @@ const chatCopyKeys = {
   toolActionWriteFile: "chat.toolActionWriteFile",
   toolActionEditFile: "chat.toolActionEditFile",
   jumpToLatest: "chat.jumpToLatest",
+  taskPlan: "chat.taskPlan",
+  taskPlanToggle: "chat.taskPlanToggle",
+  taskStatusPending: "chat.taskStatusPending",
+  taskStatusInProgress: "chat.taskStatusInProgress",
+  taskStatusCompleted: "chat.taskStatusCompleted",
+  taskStatusSkipped: "chat.taskStatusSkipped",
   expandToolCall: "chat.expandToolCall",
   toolStatusOk: "chat.toolStatusOk",
   toolStatusRunning: "chat.toolStatusRunning",
