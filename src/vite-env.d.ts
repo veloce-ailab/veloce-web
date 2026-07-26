@@ -83,6 +83,7 @@ interface Window {
       webPort?: number
     }) => Promise<{ ok: boolean; message: string; version: string }>
     ensureDesktopConnector: (input: { serverURL: string; authToken: string }) => Promise<{ ok: boolean; message: string; version: string }>
+    desktopAuthLogin: (input: { serverURL: string; hint?: string }) => Promise<{ ok: boolean; token?: string; cancelled?: boolean; message?: string }>
     onBuiltinServerStatus: (callback: (status: BuiltinServerStatus) => void) => () => void
     onDesktopProcessStatus: (callback: (status: DesktopProcessStatus) => void) => () => void
     onDesktopTabReceived: (callback: (tab: DesktopTabState) => void) => () => void

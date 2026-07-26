@@ -10,6 +10,7 @@ import Models from "./pages/Models"
 import Users from "./pages/Users"
 import Logs from "./pages/Logs"
 import Login from "./pages/Login"
+import DesktopAuthorize from "./pages/DesktopAuthorize"
 import Setup from "./pages/Setup"
 import Home from "./pages/Home"
 import ModelCatalog from "./pages/ModelCatalog"
@@ -38,6 +39,7 @@ import { ThemeProvider } from "./lib/theme"
 import type { TranslationKey } from "./lib/i18n"
 import type { PublicSettings } from "./lib/public-settings"
 import { withPublicSettingsDefaults } from "./lib/public-settings"
+import { desktopAuthorizePath, readDesktopAuthorizeStash } from "./lib/desktop-authorize"
 
 const queryClient = new QueryClient()
 
@@ -321,6 +323,13 @@ function App() {
     if (token) {
       localStorage.setItem("token", token)
       localStorage.removeItem("referral_code")
+      // A pending desktop authorization (e.g. the OIDC callback landed here)
+      // takes priority over the dashboard.
+      const desktopStash = readDesktopAuthorizeStash()
+      if (desktopStash) {
+        window.location.replace(desktopAuthorizePath(desktopStash))
+        return
+      }
       window.history.replaceState(null, "", "/dashboard")
     }
   }, [])
@@ -337,6 +346,7 @@ function App() {
               <Route path="/" element={<PageTransition><Home /></PageTransition>} />
               <Route path="/setup" element={<PageTransition><Setup /></PageTransition>} />
               <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
+              <Route path="/desktop/authorize" element={<PageTransition><DesktopAuthorize /></PageTransition>} />
               <Route path="/models" element={<PageTransition><ModelCatalog /></PageTransition>} />
               <Route path="/status" element={<PageTransition><StatusPage /></PageTransition>} />
               <Route path="/about" element={<PageTransition><PublicContent kind="about" /></PageTransition>} />

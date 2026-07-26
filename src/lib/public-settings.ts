@@ -210,6 +210,32 @@ export function withPublicSettingsDefaults(settings?: Partial<PublicSettings>): 
   return { ...defaultPublicSettings, ...(settings || {}) }
 }
 
+export interface OAuthProviderSummary {
+  key: string
+  name: string
+  login_url: string
+  callback_url: string
+}
+
+export function parseOAuthProviders(raw: string): OAuthProviderSummary[] {
+  try {
+    const parsed = JSON.parse(raw || "[]")
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+    return parsed
+      .map((item) => ({
+        key: typeof item?.key === "string" ? item.key : "",
+        name: typeof item?.name === "string" ? item.name : "",
+        login_url: typeof item?.login_url === "string" ? item.login_url : "",
+        callback_url: typeof item?.callback_url === "string" ? item.callback_url : "",
+      }))
+      .filter((item) => item.key && item.name)
+  } catch {
+    return []
+  }
+}
+
 export function isPersonalMode(settings?: Partial<Pick<PublicSettings, "system_mode">>) {
   return String(settings?.system_mode ?? defaultPublicSettings.system_mode).trim().toLowerCase() === "personal"
 }

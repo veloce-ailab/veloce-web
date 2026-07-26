@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,21 +8,26 @@ import { HCaptcha } from "@/components/HCaptcha"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/toast"
 import api, { apiURL, getOAuthLoginURL, isDesktopTarget, setAuthToken } from "@/lib/api"
+import { resolvePostLoginPath } from "@/lib/desktop-authorize"
 import { useI18n } from "@/lib/i18n"
-import type { PublicSettings } from "@/lib/public-settings"
-import { withPublicSettingsDefaults } from "@/lib/public-settings"
+import type { OAuthProviderSummary as OAuthProvider, PublicSettings } from "@/lib/public-settings"
+import { parseOAuthProviders, withPublicSettingsDefaults } from "@/lib/public-settings"
 import { passkeyCredentialToJSON, passkeySupported, preparePasskeyRequestOptions } from "@/lib/passkey"
+import DesktopLogin from "@/desktop/DesktopLogin"
 
 type Mode = "login" | "register"
 
-interface OAuthProvider {
-  key: string
-  name: string
-  login_url: string
-  callback_url: string
+export default function Login() {
+  // The desktop app never renders the in-app form: sign-in happens inside an
+  // embedded authorization window served by the site itself (hCaptcha cannot
+  // run on file:// pages, and OIDC needs a real browser origin).
+  if (isDesktopTarget()) {
+    return <DesktopLogin />
+  }
+  return <WebLogin />
 }
 
-export default function Login() {
+function WebLogin() {
   const { language, t } = useI18n()
   const { success, error } = useToast()
   const copy = language === "zh" ? zhCopy : enCopy
@@ -36,7 +41,8 @@ export default function Login() {
   })
   const publicSettings = withPublicSettingsDefaults(settings)
   const oauthProviders = parseOAuthProviders(publicSettings.oauth_providers)
-  const initialMode = publicSettings.password_login_enabled ? "login" : "register"
+  const requestedMode = new URLSearchParams(window.location.search).get("mode")
+  const initialMode = requestedMode === "register" || !publicSettings.password_login_enabled ? "register" : "login"
   const [mode, setMode] = useState<Mode>(initialMode)
   const [loginMethod, setLoginMethod] = useState<"password" | "sms">("password")
   const [phone, setPhone] = useState("")
@@ -101,7 +107,7 @@ export default function Login() {
     onSuccess: (result) => {
       setAuthToken(result.token)
       localStorage.removeItem("referral_code")
-      window.location.href = isDesktopTarget() ? "#/chat" : "/dashboard"
+      window.location.href = isDesktopTarget() ? "#/chat" : resolvePostLoginPath()
     },
     onError: (err) => error(err instanceof Error ? err.message : copy.authFailed),
   })
@@ -144,7 +150,7 @@ export default function Login() {
     onSuccess: (result) => {
       setAuthToken(result.token)
       localStorage.removeItem("referral_code")
-      window.location.href = isDesktopTarget() ? "#/chat" : "/dashboard"
+      window.location.href = isDesktopTarget() ? "#/chat" : resolvePostLoginPath()
     },
     onError: (err) => error(err instanceof Error ? err.message : copy.passkeyFailed),
   })
@@ -168,7 +174,7 @@ export default function Login() {
     onSuccess: (result) => {
       setAuthToken(result.token)
       localStorage.removeItem("referral_code")
-      window.location.href = isDesktopTarget() ? "#/chat" : "/dashboard"
+      window.location.href = isDesktopTarget() ? "#/chat" : resolvePostLoginPath()
     },
     onError: (err) => error(err instanceof Error ? err.message : copy.authFailed),
   })
@@ -223,6 +229,26 @@ export default function Login() {
     }
     window.location.href = getOAuthLoginURL(provider.login_url || `/auth/oauth/${provider.key}/login`, new URLSearchParams(window.location.search).get("ref"), true)
   }
+
+  // The desktop authorize flow can deep-link straight to an OAuth provider
+  // (?provider=key). Auto-trigger it unless the agreement checkbox must be
+  // ticked first.
+  const autoOAuthTriggered = useRef(false)
+  useEffect(() => {
+    if (autoOAuthTriggered.current || !settings) {
+      return
+    }
+    const providerKey = new URLSearchParams(window.location.search).get("provider")
+    if (!providerKey || requiresAgreementCheckbox) {
+      return
+    }
+    const provider = oauthProviders.find((item) => item.key === providerKey)
+    if (!provider || !publicSettings.oidc_enabled) {
+      return
+    }
+    autoOAuthTriggered.current = true
+    handleOAuthLogin(provider)
+  })
 
   const passwordAuthEnabled = publicSettings.password_login_enabled || publicSettings.password_registration_enabled
   const captchaEnabled = passwordAuthEnabled && publicSettings.password_hcaptcha_enabled && Boolean(publicSettings.hcaptcha_site_key)
@@ -487,25 +513,6 @@ function legalHref(kind: LegalKind, settings: PublicSettings) {
     return trimmedURL
   }
   return inlineContent.trim() ? `/${kind}` : ""
-}
-
-function parseOAuthProviders(raw: string): OAuthProvider[] {
-  try {
-    const parsed = JSON.parse(raw || "[]")
-    if (!Array.isArray(parsed)) {
-      return []
-    }
-    return parsed
-      .map((item) => ({
-        key: typeof item?.key === "string" ? item.key : "",
-        name: typeof item?.name === "string" ? item.name : "",
-        login_url: typeof item?.login_url === "string" ? item.login_url : "",
-        callback_url: typeof item?.callback_url === "string" ? item.callback_url : "",
-      }))
-      .filter((item) => item.key && item.name)
-  } catch {
-    return []
-  }
 }
 
 const zhCopy = {
