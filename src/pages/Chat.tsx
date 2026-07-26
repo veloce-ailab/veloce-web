@@ -3095,7 +3095,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
         <CardTitle>{copy.config}</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_220px_minmax(0,1fr)]">
-        <Select value={String((selectedAPIKey?.id || "") || "__shadcn_empty__")} onValueChange={(value) => setSelectedAPIKeyID(Number((value === "__shadcn_empty__" ? "" : value)) || 0)}><SelectTrigger className="h-10 rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+        <Select value={String((selectedAPIKey?.id || "") || "__shadcn_empty__")} onValueChange={(value) => setSelectedAPIKeyID(Number((value === "__shadcn_empty__" ? "" : value)) || 0)}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
           <SelectItem value="__shadcn_empty__">{selectableAPIKeys.length ? copy.selectKey : copy.noKeys}</SelectItem>
           {selectableAPIKeys.map((key) => (
             <SelectItem key={key.id} value={String(key.id)}>
@@ -3103,13 +3103,13 @@ export default function Chat({ variant = "basic" }: ChatProps) {
             </SelectItem>
           ))}
         </SelectContent></Select>
-        <Select value={String((endpointMode) || "__shadcn_empty__")} onValueChange={(value) => setEndpointMode(normalizeEndpoint((value === "__shadcn_empty__" ? "" : value)))}><SelectTrigger className="h-10 rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+        <Select value={String((endpointMode) || "__shadcn_empty__")} onValueChange={(value) => setEndpointMode(normalizeEndpoint((value === "__shadcn_empty__" ? "" : value)))}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
           <SelectItem value="chat">{copy.chatCompletions}</SelectItem>
           <SelectItem value="responses">{copy.responsesAPI}</SelectItem>
           <SelectItem value="claude">{copy.claudeMessages}</SelectItem>
           <SelectItem value="gemini">{copy.geminiGenerate}</SelectItem>
         </SelectContent></Select>
-        <Select value={String((modelName) || "__shadcn_empty__")} onValueChange={(value) => setModelName((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+        <Select value={String((modelName) || "__shadcn_empty__")} onValueChange={(value) => setModelName((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
           <SelectItem value="__shadcn_empty__">{copy.selectModel}</SelectItem>
           {modelSelectOptions.map((model) => (
             <SelectItem key={model} value={String(model)}>
@@ -4257,7 +4257,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
                   {activeRunMode !== "agent_group" && (
                     <label className="space-y-1 text-sm">
                       <span className="font-medium">{copy.sessionModel}</span>
-                      <Select value={String((activeModelName) || "__shadcn_empty__")} onValueChange={(value) => handleSessionModelChange((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                      <Select value={String((activeModelName) || "__shadcn_empty__")} onValueChange={(value) => handleSessionModelChange((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                         <SelectItem value="__shadcn_empty__">{copy.selectModel}</SelectItem>
                         {modelSelectOptions.map((model) => (
                           <SelectItem key={model} value={String(model)}>
@@ -4276,7 +4276,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
                         if (currentSession) {
                           updateSession(currentSession.id, (session) => ({ ...session, user_channel_id: nextID || undefined }), { persist: true })
                         }
-                      }}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                      }}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                       <SelectItem value="__shadcn_empty__">{selectableUserChannels.length ? copy.selectChannel : copy.noChannels}</SelectItem>
                       {selectableUserChannels.map((channel) => (
                         <SelectItem key={channel.id} value={String(channel.id)}>
@@ -4326,7 +4326,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
                         if (currentSession) {
                           updateSession(currentSession.id, (session) => ({ ...session, reasoning_effort: (value === "__shadcn_empty__" ? "" : value) }), { persist: true })
                         }
-                      }}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                      }}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                       <SelectItem value="__shadcn_empty__">{copy.reasoningDefault}</SelectItem>
                       <SelectItem value="minimal">{copy.reasoningMinimal}</SelectItem>
                       <SelectItem value="low">{copy.reasoningLow}</SelectItem>
@@ -4379,7 +4379,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
                     <div className="rounded-md border border-dashed px-3 py-5 text-center text-sm text-muted-foreground">{copy.noAgentAdded}</div>
                   )}
                   <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-                    <Select value={String((pendingAgentID) || "__shadcn_empty__")} onValueChange={(value) => setPendingAgentID((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                    <Select value={String((pendingAgentID) || "__shadcn_empty__")} onValueChange={(value) => setPendingAgentID((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                       {agents.length === 0 && <SelectItem value="__shadcn_empty__">{copy.noAgents}</SelectItem>}
                       {agents.map((agent) => (
                         <SelectItem key={agent.id} value={String(agent.id)}>
@@ -4532,7 +4532,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
                   )}
                   <label className="space-y-1 text-sm">
                     <span className="font-medium">{agentGroupCopy.selectGroup}</span>
-                    <Select value={String((currentSession?.agent_group_id || "") || "__shadcn_empty__")} disabled={isFetchingAgentGroups} onValueChange={(value) => setSessionAgentGroup((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                    <Select value={String((currentSession?.agent_group_id || "") || "__shadcn_empty__")} disabled={isFetchingAgentGroups} onValueChange={(value) => setSessionAgentGroup((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                       <SelectItem value="__shadcn_empty__">{agentGroups.length ? agentGroupCopy.selectGroup : agentGroupCopy.noGroups}</SelectItem>
                       {agentGroups.map((group) => (
                         <SelectItem key={group.id} value={String(group.id)}>
@@ -4611,7 +4611,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
                   <div className="grid gap-3 sm:grid-cols-[1fr_1.5fr_auto]">
                     <label className="space-y-1 text-sm">
                       <span className="font-medium">{copy.selectDevice}</span>
-                      <Select value={String((pendingConnectorDeviceID) || "__shadcn_empty__")} onValueChange={(value) => setPendingConnectorDeviceID((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                      <Select value={String((pendingConnectorDeviceID) || "__shadcn_empty__")} onValueChange={(value) => setPendingConnectorDeviceID((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                         <SelectItem value="__shadcn_empty__">{selectableConnectorDevices.length ? copy.selectDevice : copy.noDevices}</SelectItem>
                         {selectableConnectorDevices.map((device) => (
                           <SelectItem key={device.id} value={String(device.id)}>
@@ -4652,7 +4652,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
                   </div>
                   <label className="space-y-1 text-sm">
                     <span className="font-medium">{approvalModeCopy.label}</span>
-                    <Select value={String((pendingConnectorApprovalMode) || "__shadcn_empty__")} onValueChange={(value) => setPendingConnectorApprovalMode(normalizeConnectorApprovalMode((value === "__shadcn_empty__" ? "" : value)))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                    <Select value={String((pendingConnectorApprovalMode) || "__shadcn_empty__")} onValueChange={(value) => setPendingConnectorApprovalMode(normalizeConnectorApprovalMode((value === "__shadcn_empty__" ? "" : value)))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                       <SelectItem value="manual">{approvalModeCopy.manual}</SelectItem>
                       <SelectItem value="full_access">{approvalModeCopy.fullAccess}</SelectItem>
                       <SelectItem value="assistant" disabled={!currentAdvancedSettings.connector_approval_agent_id}>{approvalModeCopy.assistant}</SelectItem>
