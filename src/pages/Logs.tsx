@@ -44,6 +44,9 @@ interface TokenLog {
   cache_write_1h_input_price: string | number
   pricing_formula: string
   cost: string | number
+  // status 为 0 表示成功；上级调用失败时为返回的 HTTP 状态码（该行不计费）
+  status?: number
+  error_message?: string
 }
 
 interface APIKeyOption {
@@ -319,20 +322,38 @@ function CallRecordsTable({
                 </TableCell>
               </TableRow>
             ) : (
-              logs.items.map((log) => (
-                <TableRow key={log.id}>
+              logs.items.map((log) => {
+                const failed = (log.status || 0) >= 400
+                return (
+                <TableRow key={log.id} className={failed ? "bg-destructive/5" : undefined}>
                   <TableCell>{formatDateTime(log.created_at)}</TableCell>
                   <TableCell>{log.api_key_id || "-"}</TableCell>
                   <TableCell>{log.user_channel_id || "-"} / {log.channel_id}</TableCell>
-                  <TableCell>{log.model_name}</TableCell>
+                  <TableCell>
+                    <span className="whitespace-nowrap">{log.model_name}</span>
+                    {failed && (
+                      <span
+                        className="ml-1.5 inline-flex items-center rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive"
+                        title={log.error_message || undefined}
+                      >
+                        {copy.failed} {log.status}
+                      </span>
+                    )}
+                    {failed && log.error_message && (
+                      <div className="mt-0.5 max-w-64 truncate text-xs text-muted-foreground" title={log.error_message}>
+                        {log.error_message}
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell className="whitespace-nowrap">in {log.input_tokens} · out {log.output_tokens}<br /><span className="text-xs text-muted-foreground">cache {log.cached_input_tokens || 0} / write {log.cache_write_input_tokens || 0} / 1h {log.cache_write_1h_input_tokens || 0}</span></TableCell>
                   <TableCell className="whitespace-nowrap text-xs">in {formatPrice(log.input_price, currency)}<br />out {formatPrice(log.output_price, currency)}<br />cache {formatPrice(log.cached_input_price, currency)}</TableCell>
                   <TableCell className="whitespace-nowrap text-xs">组 {formatDecimal(log.group_multiplier)}×<br />通道 {formatDecimal(log.user_channel_multiplier)}×</TableCell>
                   <TableCell className="max-w-80 truncate text-xs" title={log.pricing_formula}>{log.pricing_formula || "-"}</TableCell>
                   <TableCell className="whitespace-nowrap text-xs">FRT {formatLatency(log.first_response_time_ms)}<br />总计 {formatLatency(log.response_time_ms)}</TableCell>
-                  <TableCell>{formatCurrency(log.cost, currency)}</TableCell>
+                  <TableCell>{failed ? <span className="text-muted-foreground">{copy.notBilled}</span> : formatCurrency(log.cost, currency)}</TableCell>
                 </TableRow>
-              ))
+                )
+              })
             )}
           </TableBody>
         </Table>
@@ -687,6 +708,8 @@ const zhDetailsCopy = {
   multipliers: "倍率",
   formula: "计费算式",
   performance: "性能",
+  failed: "失败",
+  notBilled: "未计费",
   previousPage: "上一页",
   nextPage: "下一页",
   pageSummary: "第 {page} / {totalPages} 页，共 {total} 条",
@@ -730,6 +753,8 @@ const enDetailsCopy: typeof zhDetailsCopy = {
   multipliers: "Multipliers",
   formula: "Billing formula",
   performance: "Performance",
+  failed: "Failed",
+  notBilled: "Not billed",
   previousPage: "Previous",
   nextPage: "Next",
   pageSummary: "Page {page} of {totalPages}, {total} records",
