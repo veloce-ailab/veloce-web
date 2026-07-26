@@ -24,6 +24,7 @@ import {
   Trash2,
   Upload,
   Server,
+  Network,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { AxiosError } from "axios"
@@ -82,6 +83,25 @@ interface RedeemCode {
   enabled: boolean
   expires_at?: string | null
   created_at: string
+}
+
+interface ClusterNode {
+  id: number
+  name: string
+  role: string
+  online: boolean
+  is_current: boolean
+  last_seen_at: string
+  created_at: string
+}
+
+interface ClusterStatus {
+  multi_node_enabled: boolean
+  current_node_name: string
+  node_name_missing: boolean
+  node_address_mode: string
+  node_addresses: string
+  nodes: ClusterNode[]
 }
 
 interface SubscriptionPlan {
@@ -344,6 +364,10 @@ interface SystemSettings extends PublicSettings {
   redis_password_clear: boolean
   redis_database: string
   redis_tls_enabled: boolean
+  multi_node_enabled: boolean
+  node_address_mode: string
+  node_addresses: string
+  current_node_name: string
 }
 
 type SystemTab =
@@ -363,6 +387,7 @@ type SystemTab =
   | "statusMonitor"
   | "reliability"
   | "logCleanup"
+  | "nodes"
   | "configuration"
   | "updates"
   | "groups"
@@ -380,7 +405,7 @@ const systemSectionTabs: Record<SystemSection, SystemTab[]> = {
   theme: ["theme", "themeSettings"],
   auth: ["auth", "email"],
   content: ["content", "topNavigation", "navigation"],
-  operations: ["statusMonitor", "reliability", "logCleanup", "configuration", "updates", "payment", "groups", "metaModels", "subscriptionPlans", "redeemCodes"],
+  operations: ["statusMonitor", "reliability", "logCleanup", "nodes", "configuration", "updates", "payment", "groups", "metaModels", "subscriptionPlans", "redeemCodes"],
   advancedChat: ["advancedChatAssistant", "advancedChatAttachments", "advancedChatMCP"],
   subscriptions: ["subscriptionPlans"],
   redeemCodes: ["redeemCodes"],
@@ -481,6 +506,10 @@ const defaultSystemSettings: SystemSettings = {
   redis_password_clear: false,
   redis_database: "0",
   redis_tls_enabled: false,
+  multi_node_enabled: false,
+  node_address_mode: "single",
+  node_addresses: "",
+  current_node_name: "",
 }
 
 const sensitiveSystemSettingsFields = [
@@ -522,6 +551,7 @@ const systemSettingsFieldsByTab: Partial<Record<SystemTab, readonly (keyof Syste
   statusMonitor: ["status_monitor_enabled"],
   reliability: ["reliability_auto_disable_enabled", "reliability_disable_after_failures", "reliability_auto_detect_upstream_enabled", "reliability_auto_detect_interval_seconds", "reliability_auto_detect_timeout_seconds", "reliability_auto_recover_enabled", "reliability_recovery_after_seconds"],
   logCleanup: ["log_storage_mode", "log_retention_days"],
+  nodes: ["multi_node_enabled", "node_address_mode", "node_addresses"],
   updates: ["auto_update_enabled", "auto_update_interval_hours"],
 }
 
@@ -695,6 +725,29 @@ export default function SystemManagement({ section = "general", initialTab }: { 
     queryKey: ["auto-update-status"],
     queryFn: async () => (await api.get("/updates")).data,
     refetchInterval: 1000,
+  })
+  const { data: clusterStatus } = useQuery<ClusterStatus>({
+    queryKey: ["cluster-nodes"],
+    queryFn: async () => (await api.get("/nodes")).data,
+    refetchInterval: 15000,
+  })
+
+  const promoteNode = useMutation({
+    mutationFn: async (id: number) => api.post(`/nodes/${id}/promote`, {}),
+    onSuccess: () => {
+      success(t("admin.saved"))
+      queryClient.invalidateQueries({ queryKey: ["cluster-nodes"] })
+    },
+    onError: (err) => error(apiErrorMessage(err, t("admin.saveFailed"))),
+  })
+
+  const removeNode = useMutation({
+    mutationFn: async (id: number) => api.delete(`/nodes/${id}`),
+    onSuccess: () => {
+      success(t("admin.deleted"))
+      queryClient.invalidateQueries({ queryKey: ["cluster-nodes"] })
+    },
+    onError: (err) => error(apiErrorMessage(err, t("admin.deleteFailed"))),
   })
 
   useEffect(() => {
@@ -1696,6 +1749,88 @@ export default function SystemManagement({ section = "general", initialTab }: { 
         </SettingsPanel>
       )}
 
+      {activeTab === "nodes" && (
+        <SettingsPanel title={copy.nodes}>
+          <div className="space-y-5">
+            <SectionTitle title={copy.nodesTitle} description={copy.nodesDescription} />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <ToggleField label={copy.multiNodeEnabled} checked={form.multi_node_enabled} onChange={(checked) => updateField("multi_node_enabled", checked)} />
+              <label className="grid gap-2 text-sm">
+                <span className="font-medium">{copy.nodeAddressMode}</span>
+                <Select value={form.node_address_mode || "single"} onValueChange={(value) => updateField("node_address_mode", value)}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                  <SelectItem value="single">{copy.nodeAddressSingle}</SelectItem>
+                  <SelectItem value="multiple">{copy.nodeAddressMultiple}</SelectItem>
+                </SelectContent></Select>
+              </label>
+            </div>
+            <TextareaField
+              label={form.node_address_mode === "multiple" ? copy.nodeAddresses : copy.nodeAddress}
+              value={form.node_addresses}
+              placeholder={copy.nodeAddressesPlaceholder}
+              onChange={(value) => updateField("node_addresses", value)}
+            />
+            <div className="rounded-md border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
+              {copy.nodeEnvHint}
+              <div className="mt-1 font-mono text-foreground">NODE_NAME={clusterStatus?.current_node_name || "your-node-name"}</div>
+            </div>
+            {clusterStatus?.node_name_missing && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+                {copy.nodeNameMissing}
+              </div>
+            )}
+
+            <div className="overflow-x-auto rounded-md border">
+              <div className="min-w-[720px]">
+                <div className="grid grid-cols-[1.2fr_110px_110px_1fr_170px] border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
+                  <div>{copy.nodeName}</div>
+                  <div>{copy.nodeRole}</div>
+                  <div>{copy.status}</div>
+                  <div>{copy.nodeLastSeen}</div>
+                  <div className="text-right">{t("common.actions")}</div>
+                </div>
+                {(clusterStatus?.nodes || []).length === 0 ? (
+                  <div className="px-3 py-8 text-center text-sm text-muted-foreground">{copy.noNodes}</div>
+                ) : (
+                  (clusterStatus?.nodes || []).map((node) => (
+                    <div key={node.id} className="grid grid-cols-[1.2fr_110px_110px_1fr_170px] items-center border-b px-3 py-3 text-sm last:border-b-0">
+                      <div className="font-medium">
+                        {node.name}
+                        {node.is_current && <span className="ml-2 text-xs text-muted-foreground">{copy.nodeCurrent}</span>}
+                      </div>
+                      <div>{node.role === "primary" ? copy.nodePrimary : copy.nodeReplica}</div>
+                      <div className={node.online ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>
+                        {node.online ? copy.nodeOnline : copy.nodeOffline}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{formatNodeTimestamp(node.last_seen_at)}</div>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={node.role === "primary" || promoteNode.isPending}
+                          onClick={() => promoteNode.mutate(node.id)}
+                        >
+                          {copy.nodePromote}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-red-500 hover:text-red-600"
+                          disabled={node.online || node.is_current || removeNode.isPending}
+                          onClick={() => removeNode.mutate(node.id)}
+                        >
+                          {t("common.delete")}
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            <p className="text-xs leading-5 text-muted-foreground">{copy.nodesFooterHint}</p>
+          </div>
+        </SettingsPanel>
+      )}
+
       {activeTab === "configuration" && (
         <SettingsPanel title={copy.configurationBackup}>
           <div className="space-y-5">
@@ -2205,6 +2340,7 @@ function systemTabs(copy: SystemCopy): Array<{ id: SystemTab; label: string; ico
     { id: "statusMonitor", label: copy.statusMonitor, icon: Activity },
     { id: "reliability", label: copy.reliability, icon: RefreshCw },
     { id: "logCleanup", label: copy.logCleanup, icon: Trash2 },
+    { id: "nodes", label: copy.nodes, icon: Network },
     { id: "configuration", label: copy.configurationBackup, icon: Download },
     { id: "updates", label: copy.autoUpdate, icon: RefreshCw },
     { id: "groups", label: copy.groups, icon: Layers },
@@ -3576,6 +3712,17 @@ function announcementPayload(draft: AnnouncementDraft) {
   }
 }
 
+function formatNodeTimestamp(value: string) {
+  if (!value) {
+    return "-"
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date.toLocaleString()
+}
+
 function subscriptionPlanPayload(draft: SubscriptionPlanDraft) {
   return {
     name: draft.name.trim(),
@@ -4129,6 +4276,29 @@ const zhCopy = {
   navigation: "侧边栏模块",
   statusMonitor: "状态监测",
   reliability: "可靠性",
+  nodes: "多节点",
+  nodesTitle: "主从节点",
+  nodesDescription: "多个实例共用同一数据库时，只有主节点执行定时任务（价格同步、状态监控、可靠性探测、日志清理、定时任务调度），从节点只处理请求。",
+  multiNodeEnabled: "启用多节点",
+  nodeAddressMode: "地址形态",
+  nodeAddressSingle: "单个地址",
+  nodeAddressMultiple: "多个地址",
+  nodeAddress: "反代地址",
+  nodeAddresses: "反代地址列表",
+  nodeAddressesPlaceholder: "每行一个地址，例如 https://node-a.example.com",
+  nodeEnvHint: "开启多节点后，每个实例都必须在 env 中设置节点名称：",
+  nodeNameMissing: "当前实例没有设置 NODE_NAME，多节点模式下会启动失败。请先在该实例的 env 中补上节点名称。",
+  nodeName: "节点名称",
+  nodeRole: "角色",
+  nodeLastSeen: "最后心跳",
+  nodePrimary: "主节点",
+  nodeReplica: "从节点",
+  nodeOnline: "在线",
+  nodeOffline: "离线",
+  nodeCurrent: "（当前实例）",
+  nodePromote: "设为主节点",
+  noNodes: "暂无节点记录（开启多节点并重启实例后自动注册）",
+  nodesFooterHint: "首个注册的节点成为主节点，之后加入的节点默认为从节点；节点重启后保留原角色。地址配置仅作记录，反代用单地址还是多地址对后端没有区别。",
   logCleanup: "日志清理",
   groups: "用户分组",
   advancedChat: "助理聊天",
@@ -4599,6 +4769,29 @@ const enCopy: SystemCopy = {
   navigation: "Sidebar Modules",
   statusMonitor: "Status Monitor",
   reliability: "Reliability",
+  nodes: "Nodes",
+  nodesTitle: "Primary and replicas",
+  nodesDescription: "When several instances share one database, only the primary runs scheduled work (price sync, status monitoring, reliability probing, log cleanup, task dispatch). Replicas only serve requests.",
+  multiNodeEnabled: "Enable multi-node",
+  nodeAddressMode: "Address form",
+  nodeAddressSingle: "Single address",
+  nodeAddressMultiple: "Multiple addresses",
+  nodeAddress: "Proxy address",
+  nodeAddresses: "Proxy addresses",
+  nodeAddressesPlaceholder: "One per line, for example https://node-a.example.com",
+  nodeEnvHint: "With multi-node enabled, every instance must set its node name in the environment:",
+  nodeNameMissing: "This instance has no NODE_NAME, so it will fail to start in multi-node mode. Set the node name in its environment first.",
+  nodeName: "Node",
+  nodeRole: "Role",
+  nodeLastSeen: "Last heartbeat",
+  nodePrimary: "Primary",
+  nodeReplica: "Replica",
+  nodeOnline: "Online",
+  nodeOffline: "Offline",
+  nodeCurrent: "(this instance)",
+  nodePromote: "Make primary",
+  noNodes: "No nodes registered yet (they register on restart once multi-node is on)",
+  nodesFooterHint: "The first node to register becomes the primary and later nodes join as replicas; a restart keeps the existing role. The address fields are records only — a single address or several behind the proxy makes no difference to the backend.",
   logCleanup: "Log Cleanup",
   groups: "User Groups",
   advancedChat: "agent chat",
