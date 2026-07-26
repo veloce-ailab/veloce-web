@@ -543,8 +543,10 @@ export default function Chat({ variant = "basic" }: ChatProps) {
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const messagesViewportRef = useRef<HTMLDivElement | null>(null)
   const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const composerOverlayRef = useRef<HTMLDivElement | null>(null)
   const environmentDeviceButtonRef = useRef<HTMLButtonElement | null>(null)
   const environmentWorkspaceButtonRef = useRef<HTMLButtonElement | null>(null)
+  const [composerOverlayHeight, setComposerOverlayHeight] = useState(0)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const [editingMessageID, setEditingMessageID] = useState("")
   const [editingText, setEditingText] = useState("")
@@ -1221,6 +1223,32 @@ export default function Chat({ variant = "basic" }: ChatProps) {
     textarea.style.height = "32px"
     textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 32), 160)}px`
   }, [prompt, currentSession?.id, currentSession?.messages.length, isAdvanced])
+
+  // The composer floats over the message list, so the list needs bottom padding
+  // matching the composer's real height or the newest messages hide behind it.
+  // Runs after the textarea autosize effect so it measures the resized state.
+  useEffect(() => {
+    if (!isAdvanced) {
+      return
+    }
+    const measure = () => setComposerOverlayHeight(composerOverlayRef.current?.offsetHeight ?? 0)
+    measure()
+    const overlay = composerOverlayRef.current
+    if (!overlay || typeof ResizeObserver === "undefined") {
+      return
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(overlay)
+    return () => observer.disconnect()
+  }, [isAdvanced, currentSession?.id, prompt, attachments.length, pendingConnectorApprovals.length, taskChangeSummary.files.length])
+
+  useEffect(() => {
+    if (!isAdvanced || composerOverlayHeight <= 0 || showJumpToLatest) {
+      return
+    }
+    scrollMessagesToLatest("auto")
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composerOverlayHeight])
 
   useEffect(() => {
     if (modelName) {
@@ -3753,7 +3781,10 @@ export default function Chat({ variant = "basic" }: ChatProps) {
             </div>
             <div className={cn(isAdvanced ? "relative flex min-h-0 flex-1 flex-col gap-3" : "space-y-4 p-6 pt-0")}>
               <div ref={messagesViewportRef} className={cn(isAdvanced ? "min-h-0 flex-1 overflow-y-auto" : "min-h-[360px] space-y-3 rounded-md border p-3")} onContextMenu={handleMessageSelectionContextMenu}>
-                <div className={cn(isAdvanced ? "mx-auto w-full max-w-3xl space-y-4 px-2 py-5 pb-36 sm:px-4" : "contents")}>
+                <div
+                  className={cn(isAdvanced ? "mx-auto w-full max-w-3xl space-y-4 px-2 py-5 pb-36 sm:px-4" : "contents")}
+                  style={isAdvanced && composerOverlayHeight > 0 ? { paddingBottom: Math.max(144, composerOverlayHeight + 28) } : undefined}
+                >
                 {!currentSession || currentSession.messages.length === 0 ? (
                   <div className="flex min-h-0 flex-1 flex-col items-center justify-center py-20 text-center">
                     <Sparkles className="mb-3 h-7 w-7 text-primary" />
@@ -3926,7 +3957,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
               )}
 
               {isAdvanced ? (
-                <div className="absolute inset-x-0 bottom-3 z-20 mx-auto w-full max-w-3xl space-y-2 px-2 sm:px-4">
+                <div ref={composerOverlayRef} className="absolute inset-x-0 bottom-3 z-20 mx-auto w-full max-w-3xl space-y-2 px-2 sm:px-4">
                   {showJumpToLatest && (
                     <Button
                       type="button"
