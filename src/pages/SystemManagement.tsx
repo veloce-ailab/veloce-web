@@ -506,7 +506,7 @@ const defaultThemeColorValues = Object.fromEntries(
 ) as Pick<SystemSettings, ThemeColorFieldKey>
 
 const systemSettingsFieldsByTab: Partial<Record<SystemTab, readonly (keyof SystemSettings)[]>> = {
-  basic: ["system_mode", "site_name", "base_url", "icon_url", "home_iframe_url", "footer_text"],
+  basic: ["system_mode", "site_name", "base_url", "icon_url", "home_iframe_url", "footer_text", "community_enabled"],
   theme: Object.keys(defaultThemeColorValues) as ThemeColorFieldKey[],
   themeSettings: ["theme_background_image", "theme_custom_css"],
   billing: ["pricing_endpoint_enabled", "referral_enabled", "referral_commission_rate", "group_multiplier_mode"],
@@ -1098,6 +1098,10 @@ export default function SystemManagement({ section = "general", initialTab }: { 
             <TextField label={copy.iconURL} value={form.icon_url} placeholder={copy.iconURLPlaceholder} onChange={(value) => updateField("icon_url", value)} />
             <TextField label={copy.homeIframeURL} value={form.home_iframe_url} placeholder={copy.homeIframeURLPlaceholder} onChange={(value) => updateField("home_iframe_url", value)} />
             <TextField label={copy.footerText} value={form.footer_text} placeholder={copy.footerTextPlaceholder} onChange={(value) => updateField("footer_text", value)} />
+            <div className="lg:col-span-2">
+              <ToggleField label={copy.communityEnabled} checked={form.community_enabled} onChange={(checked) => updateField("community_enabled", checked)} />
+              <p className="mt-1 text-xs text-muted-foreground">{copy.communityEnabledHint}</p>
+            </div>
           </div>
         </SettingsPanel>
       )}
@@ -4138,6 +4142,8 @@ const zhCopy = {
   iconURL: "图标 URL",
   iconURLPlaceholder: "例如 https://example.com/icon.png",
   footerText: "页脚文本",
+  communityEnabled: "启用社区功能",
+  communityEnabledHint: "关闭后聊天页的社区入口与社区浏览/导入接口均不可用。",
   footerTextPlaceholder: "例如 © 2026 WindyPear",
   homeIframeURL: "首页 iframe 地址",
   homeIframeURLPlaceholder: "例如 https://status.example.com",
@@ -4606,6 +4612,8 @@ const enCopy: SystemCopy = {
   iconURL: "Icon URL",
   iconURLPlaceholder: "For example, https://example.com/icon.png",
   footerText: "Footer text",
+  communityEnabled: "Enable community",
+  communityEnabledHint: "When disabled, the community entry in chat and the community browse/import APIs are unavailable.",
   footerTextPlaceholder: "For example, © 2026 WindyPear",
   homeIframeURL: "Home iframe URL",
   homeIframeURLPlaceholder: "For example, https://status.example.com",

@@ -63,6 +63,7 @@ export interface PublicSettings {
   referral_commission_rate: string
   group_multiplier_mode: string
   pricing_endpoint_enabled: boolean
+  community_enabled: boolean
   status_monitor_enabled: boolean
   reliability_auto_disable_enabled: boolean
   reliability_disable_after_failures: string
@@ -166,6 +167,7 @@ export const defaultPublicSettings: PublicSettings = {
   referral_commission_rate: "0",
   group_multiplier_mode: "min",
   pricing_endpoint_enabled: false,
+  community_enabled: true,
   status_monitor_enabled: false,
   reliability_auto_disable_enabled: false,
   reliability_disable_after_failures: "3",

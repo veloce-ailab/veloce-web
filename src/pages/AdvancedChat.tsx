@@ -220,6 +220,7 @@ export default function AdvancedChat() {
                     <Route path="agents/:id" element={<AgentEditor />} />
                     <Route path="community" element={<Community />} />
                     <Route path="community/knowledge-bases/:knowledgeBaseID" element={<Community />} />
+                    <Route path="community/skills/:skillID" element={<Community />} />
                     <Route path="community/:id" element={<Community />} />
                     <Route path="skills" element={<Skills />} />
                     <Route path="skills/:id" element={<Skills />} />
@@ -336,7 +337,7 @@ function AdvancedChatSidebar({
     active: location.pathname === "/chat" || location.pathname.startsWith("/chat/session/"),
   }
   const directItems: AdvancedChatSidebarItem[] = [
-    { href: "/chat/community", label: language === "zh" ? "社区" : language === "ja" ? "コミュニティ" : "Community", icon: Users, active: location.pathname === "/chat/community" || location.pathname.startsWith("/chat/community/") },
+    ...(publicSettings.community_enabled !== false ? [{ href: "/chat/community", label: language === "zh" ? "社区" : language === "ja" ? "コミュニティ" : "Community", icon: Users, active: location.pathname === "/chat/community" || location.pathname.startsWith("/chat/community/") }] : []),
     ...(enterpriseMode ? [{ href: "/chat/tasks", label: language === "zh" ? "任务" : "Tasks", icon: ListTree, active: location.pathname === "/chat/tasks" }] : []),
     { href: "/chat/files", label: filesLabel, icon: FileText, active: location.pathname === "/chat/files" },
     { href: "/chat/knowledge", label: knowledgeLabel, icon: Database, active: location.pathname === "/chat/knowledge" },
