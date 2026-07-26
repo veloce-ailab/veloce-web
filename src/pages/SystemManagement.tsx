@@ -267,6 +267,17 @@ interface SystemSettings extends PublicSettings {
   smtp_username: string
   smtp_password: string
   smtp_from: string
+  sms_provider: string
+  sms_aliyun_access_key_id: string
+  sms_aliyun_access_key_secret: string
+  sms_aliyun_sign_name: string
+  sms_aliyun_template_code: string
+  sms_tencent_secret_id: string
+  sms_tencent_secret_key: string
+  sms_tencent_sdk_app_id: string
+  sms_tencent_sign_name: string
+  sms_tencent_template_id: string
+  sms_tencent_region: string
   oidc_issuer: string
   oidc_client_id: string
   oidc_client_secret: string
@@ -393,6 +404,17 @@ const defaultSystemSettings: SystemSettings = {
   smtp_username: "",
   smtp_password: "",
   smtp_from: "",
+  sms_provider: "aliyun",
+  sms_aliyun_access_key_id: "",
+  sms_aliyun_access_key_secret: "",
+  sms_aliyun_sign_name: "",
+  sms_aliyun_template_code: "",
+  sms_tencent_secret_id: "",
+  sms_tencent_secret_key: "",
+  sms_tencent_sdk_app_id: "",
+  sms_tencent_sign_name: "",
+  sms_tencent_template_id: "",
+  sms_tencent_region: "ap-guangzhou",
   oidc_issuer: "",
   oidc_client_id: "",
   oidc_client_secret: "",
@@ -458,6 +480,8 @@ const defaultSystemSettings: SystemSettings = {
 const sensitiveSystemSettingsFields = [
   "hcaptcha_secret",
   "smtp_password",
+  "sms_aliyun_access_key_secret",
+  "sms_tencent_secret_key",
   "oidc_client_secret",
   "payment_yipay_key",
   "payment_openpayment_key",
@@ -485,7 +509,7 @@ const systemSettingsFieldsByTab: Partial<Record<SystemTab, readonly (keyof Syste
   security: ["rate_limit_enabled", "rate_limit_requests_per_minute", "rate_limit_burst", "sensitive_filter_enabled", "sensitive_filter_scope", "ssrf_protection_enabled", "ssrf_allow_private_networks", "sensitive_words", "ssrf_allowed_hosts"],
   redis: ["redis_enabled", "redis_tls_enabled", "redis_address", "redis_database", "redis_username", "redis_password", "redis_password_clear"],
   auth: ["oidc_enabled", "passkey_enabled", "password_login_enabled", "password_registration_enabled", "token_api_enabled", "email_verification_required", "password_hcaptcha_enabled", "registration_email_suffixes", "registration_email_routing", "auth_agreement_mode", "hcaptcha_site_key", "hcaptcha_secret", "oidc_issuer", "oidc_client_id", "oidc_client_secret", "oidc_redirect_url", "oauth_providers"],
-  email: ["smtp_host", "smtp_port", "smtp_username", "smtp_password", "smtp_from"],
+  email: ["smtp_host", "smtp_port", "smtp_username", "smtp_password", "smtp_from", "sms_enabled", "sms_provider", "sms_aliyun_access_key_id", "sms_aliyun_access_key_secret", "sms_aliyun_sign_name", "sms_aliyun_template_code", "sms_tencent_secret_id", "sms_tencent_secret_key", "sms_tencent_sdk_app_id", "sms_tencent_sign_name", "sms_tencent_template_id", "sms_tencent_region"],
   content: ["announcement", "about_html", "privacy_policy_url", "terms_url", "privacy_policy", "terms"],
   topNavigation: ["top_nav_enabled", "top_nav_items"],
   navigation: ["sidebar_dashboard_enabled", "sidebar_usage_enabled", "sidebar_wallet_enabled", "sidebar_data_board_enabled", "sidebar_api_keys_enabled", "sidebar_chat_enabled", "sidebar_images_enabled", "sidebar_settings_enabled", "sidebar_system_enabled", "sidebar_admin_overview_enabled", "sidebar_channels_enabled", "sidebar_models_enabled", "sidebar_users_enabled"],
@@ -1300,6 +1324,38 @@ export default function SystemManagement({ section = "general", initialTab }: { 
             <TextField label={copy.smtpUsername} value={form.smtp_username} placeholder={copy.smtpUsernamePlaceholder} onChange={(value) => updateField("smtp_username", value)} />
             <TextField label={copy.smtpPassword} value={form.smtp_password} placeholder={copy.sensitiveValuePlaceholder} type="password" onChange={(value) => updateField("smtp_password", value)} />
             <TextField label={copy.smtpFrom} value={form.smtp_from} placeholder={copy.smtpFromPlaceholder} onChange={(value) => updateField("smtp_from", value)} />
+          </div>
+          <div className="space-y-3 border-t pt-4">
+            <SectionTitle title={copy.smsSection} description={copy.smsSectionDescription} />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <ToggleField label={copy.smsEnabled} checked={form.sms_enabled} onChange={(checked) => updateField("sms_enabled", checked)} />
+              <label className="block space-y-2 text-sm">
+                <span className="font-medium">{copy.smsProvider}</span>
+                <Select value={form.sms_provider || "aliyun"} onValueChange={(value) => updateField("sms_provider", value)}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                  <SelectItem value="aliyun">{copy.smsProviderAliyun}</SelectItem>
+                  <SelectItem value="tencent">{copy.smsProviderTencent}</SelectItem>
+                </SelectContent></Select>
+              </label>
+              {form.sms_provider !== "tencent" && (
+                <>
+                  <TextField label={copy.smsAliyunAccessKeyID} value={form.sms_aliyun_access_key_id} placeholder="AccessKey ID" onChange={(value) => updateField("sms_aliyun_access_key_id", value)} />
+                  <TextField label={copy.smsAliyunAccessKeySecret} value={form.sms_aliyun_access_key_secret} placeholder={copy.sensitiveValuePlaceholder} type="password" onChange={(value) => updateField("sms_aliyun_access_key_secret", value)} />
+                  <TextField label={copy.smsSignName} value={form.sms_aliyun_sign_name} placeholder={copy.smsSignNamePlaceholder} onChange={(value) => updateField("sms_aliyun_sign_name", value)} />
+                  <TextField label={copy.smsAliyunTemplateCode} value={form.sms_aliyun_template_code} placeholder="SMS_123456789" onChange={(value) => updateField("sms_aliyun_template_code", value)} />
+                </>
+              )}
+              {form.sms_provider === "tencent" && (
+                <>
+                  <TextField label={copy.smsTencentSecretID} value={form.sms_tencent_secret_id} placeholder="SecretId" onChange={(value) => updateField("sms_tencent_secret_id", value)} />
+                  <TextField label={copy.smsTencentSecretKey} value={form.sms_tencent_secret_key} placeholder={copy.sensitiveValuePlaceholder} type="password" onChange={(value) => updateField("sms_tencent_secret_key", value)} />
+                  <TextField label={copy.smsTencentSDKAppID} value={form.sms_tencent_sdk_app_id} placeholder="1400000000" onChange={(value) => updateField("sms_tencent_sdk_app_id", value)} />
+                  <TextField label={copy.smsSignName} value={form.sms_tencent_sign_name} placeholder={copy.smsSignNamePlaceholder} onChange={(value) => updateField("sms_tencent_sign_name", value)} />
+                  <TextField label={copy.smsTencentTemplateID} value={form.sms_tencent_template_id} placeholder="1234567" onChange={(value) => updateField("sms_tencent_template_id", value)} />
+                  <TextField label={copy.smsTencentRegion} value={form.sms_tencent_region} placeholder="ap-guangzhou" onChange={(value) => updateField("sms_tencent_region", value)} />
+                </>
+              )}
+            </div>
+            <p className="text-xs leading-5 text-muted-foreground">{copy.smsHint}</p>
           </div>
         </SettingsPanel>
       )}
@@ -4165,6 +4221,23 @@ const zhCopy = {
   smtpPasswordPlaceholder: "SMTP 密码或授权码",
   smtpFrom: "发件人",
   smtpFromPlaceholder: "例如 WindyPear <no-reply@example.com>",
+  smsSection: "短信认证",
+  smsSectionDescription: "配置短信服务后，可开启手机号注册与绑定手机号。",
+  smsEnabled: "启用手机号认证（注册/绑定）",
+  smsProvider: "短信服务商",
+  smsProviderAliyun: "阿里云短信",
+  smsProviderTencent: "腾讯云短信",
+  smsAliyunAccessKeyID: "阿里云 AccessKey ID",
+  smsAliyunAccessKeySecret: "阿里云 AccessKey Secret",
+  smsAliyunTemplateCode: "阿里云模板 Code",
+  smsTencentSecretID: "腾讯云 SecretId",
+  smsTencentSecretKey: "腾讯云 SecretKey",
+  smsTencentSDKAppID: "腾讯云 SDK AppId",
+  smsTencentTemplateID: "腾讯云模板 ID",
+  smsTencentRegion: "腾讯云地域",
+  smsSignName: "短信签名",
+  smsSignNamePlaceholder: "已审核通过的签名名称",
+  smsHint: "验证码模板需包含一个验证码变量：阿里云为 ${code}，腾讯云为 {1}。目前支持中国大陆手机号。",
   referredUser: "被推广用户",
   baseCost: "消费",
   commission: "返佣",
@@ -4607,6 +4680,23 @@ const enCopy: SystemCopy = {
   smtpPasswordPlaceholder: "SMTP password or app password",
   smtpFrom: "From",
   smtpFromPlaceholder: "For example, WindyPear <no-reply@example.com>",
+  smsSection: "SMS verification",
+  smsSectionDescription: "Configure an SMS provider to enable phone number registration and binding.",
+  smsEnabled: "Enable phone authentication (register/bind)",
+  smsProvider: "SMS provider",
+  smsProviderAliyun: "Aliyun SMS",
+  smsProviderTencent: "Tencent Cloud SMS",
+  smsAliyunAccessKeyID: "Aliyun AccessKey ID",
+  smsAliyunAccessKeySecret: "Aliyun AccessKey Secret",
+  smsAliyunTemplateCode: "Aliyun template code",
+  smsTencentSecretID: "Tencent Cloud SecretId",
+  smsTencentSecretKey: "Tencent Cloud SecretKey",
+  smsTencentSDKAppID: "Tencent Cloud SDK AppId",
+  smsTencentTemplateID: "Tencent Cloud template ID",
+  smsTencentRegion: "Tencent Cloud region",
+  smsSignName: "SMS sign name",
+  smsSignNamePlaceholder: "Approved SMS signature",
+  smsHint: "The template must contain one verification-code variable: ${code} for Aliyun, {1} for Tencent Cloud. Mainland China phone numbers are supported.",
   referredUser: "Referred user",
   baseCost: "Cost",
   commission: "Commission",
