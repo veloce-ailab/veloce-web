@@ -28,6 +28,7 @@ interface UserChannelCatalog {
   id: number
   name: string
   description: string
+  multiplier: string | number
   models: string[]
 }
 
@@ -555,17 +556,40 @@ function RestrictionPicker({
 }) {
   const { t } = useI18n()
   const modelOptions = modelOptionsForChannel(catalog, channelId, models)
+  const selectedChannel = catalog.find((channel) => channel.id === channelId)
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <div className="space-y-2">
         <div className="text-sm font-medium">{t("settings.userChannels")}</div>
-        <Select value={String((channelId || "") || "__shadcn_empty__")} onValueChange={(value) => onChannelIdChange(Number((value === "__shadcn_empty__" ? "" : value)) || 0)}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+        <Select value={String((channelId || "") || "__shadcn_empty__")} onValueChange={(value) => onChannelIdChange(Number((value === "__shadcn_empty__" ? "" : value)) || 0)}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue>
+          {selectedChannel ? (
+            <span className="flex items-center gap-2">
+              <span className="truncate">{selectedChannel.name}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">×{formatMultiplier(selectedChannel.multiplier)}</span>
+            </span>
+          ) : (
+            t("admin.selectUserChannel")
+          )}
+        </SelectValue></SelectTrigger><SelectContent>
           <SelectItem value="__shadcn_empty__">{t("admin.selectUserChannel")}</SelectItem>
           {catalog.map((channel) => (
-            <SelectItem key={channel.id} value={String(channel.id)}>{channel.name}</SelectItem>
+            <SelectItem key={channel.id} value={String(channel.id)}>
+              <span className="flex min-w-0 flex-col py-0.5 text-left">
+                <span className="flex items-center gap-2">
+                  <span className="truncate">{channel.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{t("channels.multiplier")} ×{formatMultiplier(channel.multiplier)}</span>
+                </span>
+                {channel.description && (
+                  <span className="max-w-80 truncate text-xs text-muted-foreground">{channel.description}</span>
+                )}
+              </span>
+            </SelectItem>
           ))}
         </SelectContent></Select>
+        {selectedChannel?.description && (
+          <div className="text-xs text-muted-foreground">{selectedChannel.description}</div>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -630,6 +654,11 @@ function channelName(catalog: UserChannelCatalog[], id: number) {
   return catalog.find((channel) => channel.id === id)?.name || ""
 }
 
+function formatMultiplier(value: string | number) {
+  const parsed = Number(value || 0)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed.toLocaleString("en-US", { maximumFractionDigits: 4 }) : "1"
+}
+
 function parseCSV(value: string) {
   return value
     .split(",")
@@ -683,6 +712,7 @@ function normalizeCatalogItem(value: unknown): UserChannelCatalog {
     id: Number(item.id || 0),
     name: typeof item.name === "string" ? item.name : "",
     description: typeof item.description === "string" ? item.description : "",
+    multiplier: typeof item.multiplier === "string" || typeof item.multiplier === "number" ? item.multiplier : 1,
     models: stringArray(item.models),
   }
 }
