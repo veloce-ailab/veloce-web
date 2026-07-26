@@ -509,7 +509,7 @@ const systemSettingsFieldsByTab: Partial<Record<SystemTab, readonly (keyof Syste
   security: ["rate_limit_enabled", "rate_limit_requests_per_minute", "rate_limit_burst", "sensitive_filter_enabled", "sensitive_filter_scope", "ssrf_protection_enabled", "ssrf_allow_private_networks", "sensitive_words", "ssrf_allowed_hosts"],
   redis: ["redis_enabled", "redis_tls_enabled", "redis_address", "redis_database", "redis_username", "redis_password", "redis_password_clear"],
   auth: ["oidc_enabled", "passkey_enabled", "password_login_enabled", "password_registration_enabled", "token_api_enabled", "email_verification_required", "password_hcaptcha_enabled", "registration_email_suffixes", "registration_email_routing", "auth_agreement_mode", "hcaptcha_site_key", "hcaptcha_secret", "oidc_issuer", "oidc_client_id", "oidc_client_secret", "oidc_redirect_url", "oauth_providers"],
-  email: ["smtp_host", "smtp_port", "smtp_username", "smtp_password", "smtp_from", "sms_enabled", "sms_provider", "sms_aliyun_access_key_id", "sms_aliyun_access_key_secret", "sms_aliyun_sign_name", "sms_aliyun_template_code", "sms_tencent_secret_id", "sms_tencent_secret_key", "sms_tencent_sdk_app_id", "sms_tencent_sign_name", "sms_tencent_template_id", "sms_tencent_region"],
+  email: ["smtp_host", "smtp_port", "smtp_username", "smtp_password", "smtp_from", "sms_enabled", "sms_login_enabled", "sms_binding_required", "sms_provider", "sms_aliyun_access_key_id", "sms_aliyun_access_key_secret", "sms_aliyun_sign_name", "sms_aliyun_template_code", "sms_tencent_secret_id", "sms_tencent_secret_key", "sms_tencent_sdk_app_id", "sms_tencent_sign_name", "sms_tencent_template_id", "sms_tencent_region"],
   content: ["announcement", "about_html", "privacy_policy_url", "terms_url", "privacy_policy", "terms"],
   topNavigation: ["top_nav_enabled", "top_nav_items"],
   navigation: ["sidebar_dashboard_enabled", "sidebar_usage_enabled", "sidebar_wallet_enabled", "sidebar_data_board_enabled", "sidebar_api_keys_enabled", "sidebar_chat_enabled", "sidebar_images_enabled", "sidebar_settings_enabled", "sidebar_system_enabled", "sidebar_admin_overview_enabled", "sidebar_channels_enabled", "sidebar_models_enabled", "sidebar_users_enabled"],
@@ -1329,6 +1329,8 @@ export default function SystemManagement({ section = "general", initialTab }: { 
             <SectionTitle title={copy.smsSection} description={copy.smsSectionDescription} />
             <div className="grid gap-4 lg:grid-cols-2">
               <ToggleField label={copy.smsEnabled} checked={form.sms_enabled} onChange={(checked) => updateField("sms_enabled", checked)} />
+              <ToggleField label={copy.smsLoginEnabled} checked={form.sms_login_enabled} onChange={(checked) => updateField("sms_login_enabled", checked)} />
+              <ToggleField label={copy.smsBindingRequired} checked={form.sms_binding_required} onChange={(checked) => updateField("sms_binding_required", checked)} />
               <label className="block space-y-2 text-sm">
                 <span className="font-medium">{copy.smsProvider}</span>
                 <Select value={form.sms_provider || "aliyun"} onValueChange={(value) => updateField("sms_provider", value)}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
@@ -4224,6 +4226,8 @@ const zhCopy = {
   smsSection: "短信认证",
   smsSectionDescription: "配置短信服务后，可开启手机号注册与绑定手机号。",
   smsEnabled: "启用手机号认证（注册/绑定）",
+  smsLoginEnabled: "启用短信验证码登录",
+  smsBindingRequired: "强制用户绑定手机号",
   smsProvider: "短信服务商",
   smsProviderAliyun: "阿里云短信",
   smsProviderTencent: "腾讯云短信",
@@ -4683,6 +4687,8 @@ const enCopy: SystemCopy = {
   smsSection: "SMS verification",
   smsSectionDescription: "Configure an SMS provider to enable phone number registration and binding.",
   smsEnabled: "Enable phone authentication (register/bind)",
+  smsLoginEnabled: "Enable SMS code login",
+  smsBindingRequired: "Require users to bind a phone number",
   smsProvider: "SMS provider",
   smsProviderAliyun: "Aliyun SMS",
   smsProviderTencent: "Tencent Cloud SMS",

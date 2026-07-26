@@ -24,6 +24,7 @@ interface CurrentUser {
   id: number
   username: string
   email: string
+  phone?: string | null
   oidc_sub?: string | null
   avatar_url?: string
   balance: string | number
@@ -79,6 +80,9 @@ export default function Settings({ section = "profile" }: { section?: SettingsSe
   const [passwordStatus, setPasswordStatus] = useState("")
   const [passkeyName, setPasskeyName] = useState("")
   const [passkeyStatus, setPasskeyStatus] = useState("")
+  const [bindPhoneNumber, setBindPhoneNumber] = useState("")
+  const [bindPhoneCode, setBindPhoneCode] = useState("")
+  const [phoneStatus, setPhoneStatus] = useState("")
   const [titleModelName, setTitleModelName] = useState("")
   const [titleUserChannelID, setTitleUserChannelID] = useState(0)
   const [titleGenerationScope, setTitleGenerationScope] = useState<"all" | "recent">("recent")
@@ -242,6 +246,32 @@ export default function Settings({ section = "profile" }: { section?: SettingsSe
     onError: (error) => setPasskeyStatus(apiErrorMessage(error, copy.passkeyDeleteFailed)),
   })
 
+  const sendPhoneBindCode = useMutation({
+    mutationFn: async () => {
+      const res = await api.post("/user/phone/bind-code", { phone: bindPhoneNumber.trim() })
+      return res.data
+    },
+    onSuccess: () => setPhoneStatus(copy.phoneCodeSent),
+    onError: (error) => setPhoneStatus(apiErrorMessage(error, copy.phoneCodeFailed)),
+  })
+
+  const bindPhone = useMutation({
+    mutationFn: async () => {
+      const res = await api.post("/user/phone/bind", {
+        phone: bindPhoneNumber.trim(),
+        phone_code: bindPhoneCode.trim(),
+      })
+      return res.data
+    },
+    onSuccess: () => {
+      setPhoneStatus(copy.phoneBound)
+      setBindPhoneNumber("")
+      setBindPhoneCode("")
+      queryClient.invalidateQueries({ queryKey: ["me"] })
+    },
+    onError: (error) => setPhoneStatus(apiErrorMessage(error, copy.phoneBindFailed)),
+  })
+
   const uploadAvatar = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData()
@@ -346,6 +376,7 @@ export default function Settings({ section = "profile" }: { section?: SettingsSe
                   </div>
                   <Field label={t("common.username")} value={user?.username || "-"} />
                   <Field label={t("common.email")} value={user?.email || "-"} />
+                  {publicSettings.sms_enabled && <Field label={copy.phone} value={user?.phone || copy.notBound} />}
                   <Field label={copy.oidcAccount} value={user?.oidc_sub ? copy.bound : copy.notBound} />
                   <Field label={t("common.group")} value={groupNames(user)} />
                   <Field label={t("common.balance")} value={`${publicSettings.payment_currency_display_name}${user?.balance || 0}`} />
@@ -438,6 +469,54 @@ export default function Settings({ section = "profile" }: { section?: SettingsSe
           </Card>
         </>}
         {section === "security" && <>
+        {publicSettings.sms_enabled && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{copy.phoneBinding}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-sm text-muted-foreground">
+                {user?.phone ? copy.phoneBoundDescription.replace("{phone}", user.phone) : copy.phoneBindDescription}
+              </div>
+              {publicSettings.sms_binding_required && !user?.phone && (
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-600 dark:text-amber-400">
+                  {copy.phoneBindingRequiredHint}
+                </div>
+              )}
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  value={bindPhoneNumber}
+                  placeholder={copy.phonePlaceholder}
+                  onChange={(event) => setBindPhoneNumber(event.target.value)}
+                />
+                <Button
+                  variant="outline"
+                  className="shrink-0 gap-2"
+                  disabled={!bindPhoneNumber.trim() || sendPhoneBindCode.isPending}
+                  onClick={() => sendPhoneBindCode.mutate()}
+                >
+                  {copy.sendCode}
+                </Button>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  value={bindPhoneCode}
+                  placeholder={copy.phoneCodePlaceholder}
+                  onChange={(event) => setBindPhoneCode(event.target.value)}
+                />
+                <Button
+                  className="shrink-0 gap-2"
+                  disabled={!bindPhoneNumber.trim() || !bindPhoneCode.trim() || bindPhone.isPending}
+                  onClick={() => bindPhone.mutate()}
+                >
+                  {user?.phone ? copy.rebindPhone : copy.bindPhone}
+                </Button>
+              </div>
+              {phoneStatus && <div className="text-sm text-muted-foreground">{phoneStatus}</div>}
+            </CardContent>
+          </Card>
+        )}
+
         {publicSettings.oidc_enabled && (
           <Card>
             <CardHeader>
@@ -702,6 +781,19 @@ const zhSettingsCopy = {
   oidcBindFailed: "OIDC 绑定失败",
   bound: "已绑定",
   notBound: "未绑定",
+  phone: "手机号",
+  phoneBinding: "手机号绑定",
+  phoneBindDescription: "绑定手机号后可用于登录和账号验证。",
+  phoneBoundDescription: "当前已绑定手机号 {phone}，重新绑定会替换原手机号。",
+  phoneBindingRequiredHint: "管理员要求绑定手机号，请尽快完成绑定。",
+  phonePlaceholder: "手机号",
+  phoneCodePlaceholder: "短信验证码",
+  bindPhone: "绑定手机号",
+  rebindPhone: "更换手机号",
+  phoneCodeSent: "短信验证码已发送",
+  phoneCodeFailed: "短信验证码发送失败",
+  phoneBound: "手机号绑定成功",
+  phoneBindFailed: "手机号绑定失败",
   passkeys: "Passkeys",
   passkeyDescription: "为当前账号绑定设备 Passkey，之后可以免密码登录。",
   passkeyNamePlaceholder: "Passkey 名称，例如 MacBook",
@@ -788,6 +880,19 @@ const enSettingsCopy: typeof zhSettingsCopy = {
   oidcBindFailed: "Failed to bind OIDC",
   bound: "Bound",
   notBound: "Not bound",
+  phone: "Phone",
+  phoneBinding: "Phone binding",
+  phoneBindDescription: "Bind a phone number to use it for sign-in and account verification.",
+  phoneBoundDescription: "Currently bound to {phone}. Binding again replaces it.",
+  phoneBindingRequiredHint: "The administrator requires a bound phone number. Please bind one soon.",
+  phonePlaceholder: "Phone number",
+  phoneCodePlaceholder: "SMS verification code",
+  bindPhone: "Bind phone",
+  rebindPhone: "Change phone",
+  phoneCodeSent: "SMS verification code sent",
+  phoneCodeFailed: "Failed to send SMS code",
+  phoneBound: "Phone number bound",
+  phoneBindFailed: "Failed to bind phone number",
   passkeys: "Passkeys",
   passkeyDescription: "Bind device passkeys to this account, then sign in without a password.",
   passkeyNamePlaceholder: "Passkey name, for example MacBook",

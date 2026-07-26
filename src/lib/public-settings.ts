@@ -97,6 +97,8 @@ export interface PublicSettings {
   hcaptcha_site_key: string
   email_verification_required: boolean
   sms_enabled: boolean
+  sms_login_enabled: boolean
+  sms_binding_required: boolean
 }
 
 export const defaultPublicSettings: PublicSettings = {
@@ -198,6 +200,8 @@ export const defaultPublicSettings: PublicSettings = {
   hcaptcha_site_key: "",
   email_verification_required: false,
   sms_enabled: false,
+  sms_login_enabled: false,
+  sms_binding_required: false,
 }
 
 export function withPublicSettingsDefaults(settings?: Partial<PublicSettings>): PublicSettings {

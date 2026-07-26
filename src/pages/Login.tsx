@@ -38,6 +38,9 @@ export default function Login() {
   const oauthProviders = parseOAuthProviders(publicSettings.oauth_providers)
   const initialMode = publicSettings.password_login_enabled ? "login" : "register"
   const [mode, setMode] = useState<Mode>(initialMode)
+  const [loginMethod, setLoginMethod] = useState<"password" | "sms">("password")
+  const [phone, setPhone] = useState("")
+  const [phoneCode, setPhoneCode] = useState("")
   const [identifier, setIdentifier] = useState("")
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
@@ -146,6 +149,51 @@ export default function Login() {
     onError: (err) => error(err instanceof Error ? err.message : copy.passkeyFailed),
   })
 
+  const submitPhoneLogin = useMutation({
+    mutationFn: async () => {
+      if (!agreementReady) {
+        throw new Error(copy.agreementRequired)
+      }
+      const response = await fetch(apiURL("/auth/phone/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, phone_code: phoneCode, agreement_accepted: true }),
+      })
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(body.error || copy.authFailed)
+      }
+      return body as { token: string }
+    },
+    onSuccess: (result) => {
+      setAuthToken(result.token)
+      localStorage.removeItem("referral_code")
+      window.location.href = isDesktopTarget() ? "#/chat" : "/dashboard"
+    },
+    onError: (err) => error(err instanceof Error ? err.message : copy.authFailed),
+  })
+
+  const sendPhoneLoginCode = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(apiURL("/auth/phone/login-code"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, captcha_token: captchaToken }),
+      })
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(body.error || copy.sendCodeFailed)
+      }
+      return body
+    },
+    onSuccess: () => {
+      setCaptchaToken("")
+      setCaptchaResetKey((value) => value + 1)
+      success(copy.codeSent)
+    },
+    onError: (err) => error(err instanceof Error ? err.message : copy.sendCodeFailed),
+  })
+
   const sendCode = useMutation({
     mutationFn: async () => {
       const response = await fetch(apiURL("/auth/password/email-code"), {
@@ -187,8 +235,10 @@ export default function Login() {
   const agreementMode = String(publicSettings.auth_agreement_mode || "notice").trim().toLowerCase()
   const requiresAgreementCheckbox = hasAgreement && agreementMode === "checkbox"
   const agreementReady = !requiresAgreementCheckbox || agreementAccepted
+  const smsLoginAvailable = publicSettings.sms_login_enabled
+  const usingSMSLogin = mode === "login" && smsLoginAvailable && loginMethod === "sms"
   const canSubmit = (mode === "login"
-    ? Boolean(identifier.trim() && password)
+    ? (usingSMSLogin ? Boolean(phone.trim() && phoneCode.trim()) : Boolean(identifier.trim() && password))
     : Boolean(username.trim() && email.trim() && password && (!publicSettings.email_verification_required || emailCode.trim()))) && agreementReady
   const noLoginMethod = !passwordAuthEnabled && !oauthEnabled && !publicSettings.passkey_enabled
 
@@ -232,11 +282,33 @@ export default function Login() {
                 </div>
               )}
 
-              {mode === "login" && publicSettings.password_login_enabled && (
+              {mode === "login" && publicSettings.password_login_enabled && !usingSMSLogin && (
                 <div className="space-y-3">
                   <Input value={identifier} placeholder={copy.identifierPlaceholder} onChange={(event) => setIdentifier(event.target.value)} />
                   <Input value={password} type="password" placeholder={copy.passwordPlaceholder} onChange={(event) => setPassword(event.target.value)} />
                 </div>
+              )}
+
+              {usingSMSLogin && (
+                <div className="space-y-3">
+                  <Input value={phone} placeholder={copy.phonePlaceholder} onChange={(event) => setPhone(event.target.value)} />
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Input value={phoneCode} placeholder={copy.phoneCodePlaceholder} onChange={(event) => setPhoneCode(event.target.value)} />
+                    <Button variant="outline" className="shrink-0" disabled={!phone.trim() || (captchaEnabled && !captchaToken) || sendPhoneLoginCode.isPending} onClick={() => sendPhoneLoginCode.mutate()}>
+                      {copy.sendCode}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {mode === "login" && smsLoginAvailable && (
+                <button
+                  type="button"
+                  className="w-full text-center text-xs text-muted-foreground underline-offset-4 hover:underline"
+                  onClick={() => setLoginMethod(loginMethod === "sms" ? "password" : "sms")}
+                >
+                  {loginMethod === "sms" ? copy.usePasswordLogin : copy.useSMSLogin}
+                </button>
               )}
 
               {mode === "register" && publicSettings.password_registration_enabled && (
@@ -276,7 +348,11 @@ export default function Login() {
               )}
 
               {passwordAuthEnabled && (
-                <Button className="w-full" disabled={!canSubmit || submitPassword.isPending} onClick={() => submitPassword.mutate()}>
+                <Button
+                  className="w-full"
+                  disabled={!canSubmit || submitPassword.isPending || submitPhoneLogin.isPending}
+                  onClick={() => (usingSMSLogin ? submitPhoneLogin.mutate() : submitPassword.mutate())}
+                >
                   {mode === "login" ? copy.login : copy.register}
                 </Button>
               )}
@@ -440,6 +516,10 @@ const zhCopy = {
   emailPlaceholder: "邮箱",
   passwordPlaceholder: "密码，至少 8 位",
   emailCodePlaceholder: "邮箱验证码",
+  phonePlaceholder: "手机号",
+  phoneCodePlaceholder: "短信验证码",
+  useSMSLogin: "使用短信验证码登录",
+  usePasswordLogin: "使用密码登录",
   sendCode: "发送验证码",
   codeSent: "验证码已发送",
   sendCodeFailed: "验证码发送失败",
@@ -463,6 +543,10 @@ const enCopy: typeof zhCopy = {
   emailPlaceholder: "Email",
   passwordPlaceholder: "Password, at least 8 characters",
   emailCodePlaceholder: "Email code",
+  phonePlaceholder: "Phone number",
+  phoneCodePlaceholder: "SMS code",
+  useSMSLogin: "Sign in with SMS code",
+  usePasswordLogin: "Sign in with password",
   sendCode: "Send code",
   codeSent: "Verification code sent",
   sendCodeFailed: "Failed to send code",

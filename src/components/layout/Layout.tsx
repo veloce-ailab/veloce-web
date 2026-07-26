@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 interface CurrentUser {
   username?: string
   email?: string
+  phone?: string | null
   avatar_url?: string
   is_admin?: boolean
 }
@@ -124,6 +125,16 @@ export function Layout() {
         </div>
 
         <main className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto transition-[filter] duration-200", isSidebarOpen && "max-lg:blur-sm")}>
+          {publicSettings.sms_binding_required && user && !user.phone && (
+            <div className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 sm:px-6 lg:px-8 dark:text-amber-300">
+              <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2">
+                <span>{language === "zh" ? "管理员要求绑定手机号，请前往安全设置完成绑定。" : "The administrator requires a bound phone number. Please bind one in security settings."}</span>
+                <Link to="/settings/security" className="shrink-0 font-medium underline-offset-4 hover:underline">
+                  {language === "zh" ? "去绑定" : "Bind now"}
+                </Link>
+              </div>
+            </div>
+          )}
           {publicSettings.announcement && (
             <div className="border-b bg-muted/50 px-4 py-3 text-sm sm:px-6 lg:px-8">
               <div className="mx-auto max-w-6xl whitespace-pre-wrap">{publicSettings.announcement}</div>
