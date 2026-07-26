@@ -4,7 +4,7 @@ import type { ChangeEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNo
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { createPortal } from "react-dom"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { Activity, ArrowDown, ArrowUp, Bot, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileDiff, FileText, Folder, FolderOpen, FolderPlus, GitBranch, GitCompareArrows, Hand, ListTodo, Loader2, Menu, MessageSquarePlus, Monitor, MoreHorizontal, PanelRightClose, PanelRightOpen, Paperclip, Pencil, Plus, Quote, RefreshCw, Search, Send, Server, Settings, ShieldCheck, Sparkles, Trash2, Upload, User, X } from "lucide-react"
+import { Activity, ArrowDown, ArrowUp, Bot, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileDiff, FileText, Folder, FolderOpen, FolderPlus, GitBranch, GitCompareArrows, Hand, ListTodo, Loader2, Menu, MessageCircleQuestion, MessageSquarePlus, Monitor, MoreHorizontal, PanelRightClose, PanelRightOpen, Paperclip, Pencil, Plus, Quote, RefreshCw, Search, Send, Server, Settings, ShieldCheck, Sparkles, Trash2, Upload, User, X } from "lucide-react"
 import api, { apiURL, getAuthToken, isDesktopTarget } from "@/lib/api"
 import { ChatSetupGuide } from "@/components/onboarding/SetupGuides"
 import { useI18n, type TranslationKey } from "@/lib/i18n"
@@ -63,6 +63,72 @@ interface SessionTask {
 }
 
 const SESSION_TASK_TOOL_NAMES = new Set(["tasks_plan", "tasks_update", "tasks_list"])
+const ASK_USER_TOOL_NAME = "ask_user"
+
+interface AskUserPromptOption {
+  label: string
+  description?: string
+}
+
+interface AskUserPromptData {
+  question: string
+  options: AskUserPromptOption[]
+  allowCustom: boolean
+  multiSelect: boolean
+}
+
+function parseAskUserPrompt(result: string): AskUserPromptData | null {
+  let raw: unknown
+  try {
+    raw = JSON.parse(result)
+  } catch {
+    return null
+  }
+  if (!raw || typeof raw !== "object") {
+    return null
+  }
+  const record = raw as Record<string, unknown>
+  const question = typeof record.question === "string" ? record.question.trim() : ""
+  if (!question) {
+    return null
+  }
+  const options: AskUserPromptOption[] = []
+  if (Array.isArray(record.options)) {
+    for (const item of record.options) {
+      if (!item || typeof item !== "object") {
+        continue
+      }
+      const option = item as Record<string, unknown>
+      const label = typeof option.label === "string" ? option.label.trim() : ""
+      if (!label) {
+        continue
+      }
+      options.push({ label, description: typeof option.description === "string" ? option.description : undefined })
+    }
+  }
+  return {
+    question,
+    options,
+    allowCustom: record.allow_custom !== false,
+    multiSelect: record.multi_select === true,
+  }
+}
+
+function askUserPromptFromToolCalls(toolCalls: ChatToolCall[] | undefined): AskUserPromptData | null {
+  if (!toolCalls || toolCalls.length === 0) {
+    return null
+  }
+  for (let index = toolCalls.length - 1; index >= 0; index--) {
+    const call = toolCalls[index]
+    if (call.name === ASK_USER_TOOL_NAME && call.status === "ok" && typeof call.result === "string") {
+      const prompt = parseAskUserPrompt(call.result)
+      if (prompt) {
+        return prompt
+      }
+    }
+  }
+  return null
+}
 
 function normalizeSessionTasks(value: unknown): SessionTask[] | null {
   if (!value || typeof value !== "object" || !Array.isArray((value as { tasks?: unknown }).tasks)) {
@@ -1292,6 +1358,21 @@ export default function Chat({ variant = "basic" }: ChatProps) {
     }
   }, [isAdvanced, activeRun?.tool_call_details])
 
+  // The ask_user card is interactive only while the newest message is the
+  // assistant's question; once the user answers, the reply becomes the last
+  // message and the card disappears.
+  const pendingAskUserPrompt = useMemo(() => {
+    if (!isAdvanced || isStreamActive || isSending || isActiveRunRunning) {
+      return null
+    }
+    const messages = currentSession?.messages || []
+    const lastMessage = messages[messages.length - 1]
+    if (!lastMessage || lastMessage.role !== "assistant") {
+      return null
+    }
+    return askUserPromptFromToolCalls(lastMessage.tool_calls)
+  }, [isAdvanced, isStreamActive, isSending, isActiveRunRunning, currentSession?.messages])
+
   useEffect(() => {
     const container = messagesScrollElement()
     const target: HTMLElement | Window = container === document.scrollingElement || container === document.documentElement
@@ -2227,8 +2308,13 @@ export default function Chat({ variant = "basic" }: ChatProps) {
     }
   }
 
-  const sendMessage = async () => {
-    const content = prompt.trim()
+  const sendMessage = async () => sendMessageWithContent(null)
+
+  // rawText comes from interactive cards (e.g. ask_user answers); it bypasses
+  // the composer draft and leaves staged attachments untouched.
+  const sendMessageWithContent = async (rawText: string | null) => {
+    const content = (rawText ?? prompt).trim()
+    const activeAttachments = rawText == null ? attachments : []
     const rawKey = selectedAPIKey?.api_key.trim() || ""
     const session = currentSession
     const resolvedModel = activeModelName.trim()
@@ -2236,11 +2322,11 @@ export default function Chat({ variant = "basic" }: ChatProps) {
       return
     }
     if (isSharedSession) {
-      if (!content && attachments.length === 0) {
+      if (!content && activeAttachments.length === 0) {
         return
       }
-      const messageContent = messageContentWithAttachments(content, attachments)
-      const nextTitle = session.title || titleFromMessage(content || attachments[0]?.name || copy.attachmentMessageTitle, copy)
+      const messageContent = messageContentWithAttachments(content, activeAttachments)
+      const nextTitle = session.title || titleFromMessage(content || activeAttachments[0]?.name || copy.attachmentMessageTitle, copy)
       setIsSending(true)
       try {
         const res = await api.post(`/user/enterprise/shared-pools/${encodeURIComponent(sharedSessionPoolID)}/sessions/${encodeURIComponent(session.id)}/messages`, {
@@ -2253,8 +2339,10 @@ export default function Chat({ variant = "basic" }: ChatProps) {
           throw new Error("Shared session not found")
         }
         setLoadedSharedSession(sharedSession)
-        setPrompt("")
-        setAttachments([])
+        if (rawText == null) {
+          setPrompt("")
+          setAttachments([])
+        }
         cancelEdit()
       } catch (err) {
         error(apiErrorMessage(err, language === "zh" ? "发送共享消息失败" : "Failed to send shared message"))
@@ -2302,15 +2390,15 @@ export default function Chat({ variant = "basic" }: ChatProps) {
       error(copy.keyRequired)
       return
     }
-    if (!content && attachments.length === 0) {
+    if (!content && activeAttachments.length === 0) {
       return
     }
 
     const processingStartedAt = Date.now()
-    const messageContent = messageContentWithAttachments(content, attachments)
+    const messageContent = messageContentWithAttachments(content, activeAttachments)
     const userMessage = createMessage("user", messageContent)
     const nextMessages = [...session.messages, userMessage]
-    const nextTitle = session.title || titleFromMessage(content || attachments[0]?.name || copy.attachmentMessageTitle, copy)
+    const nextTitle = session.title || titleFromMessage(content || activeAttachments[0]?.name || copy.attachmentMessageTitle, copy)
     updateSession(session.id, (current) => ({
       ...current,
       title: nextTitle,
@@ -2318,8 +2406,10 @@ export default function Chat({ variant = "basic" }: ChatProps) {
       agent_id: activeRunMode === "agent_group" ? undefined : current.agent_id || defaultAgentID,
       model_name: activeRunMode === "agent_group" ? undefined : resolvedModel,
     }), { materialize: true })
-    setPrompt("")
-    setAttachments([])
+    if (rawText == null) {
+      setPrompt("")
+      setAttachments([])
+    }
     setIsSending(true)
     cancelEdit()
 
@@ -4077,6 +4167,15 @@ export default function Chat({ variant = "basic" }: ChatProps) {
                       <span className="sr-only">{copy.jumpToLatest}</span>
                     </Button>
                   )}
+                  {pendingAskUserPrompt && (
+                    <AskUserPromptCard
+                      key={currentSession?.messages.length || 0}
+                      prompt={pendingAskUserPrompt}
+                      copy={copy}
+                      disabled={isSending || isStreamActive}
+                      onSubmit={(text) => void sendMessageWithContent(text)}
+                    />
+                  )}
                   {sessionTasks.length > 0 && (
                     <SessionTaskPlanPanel
                       tasks={sessionTasks}
@@ -5307,6 +5406,118 @@ function ConnectorApprovalControls({
         <Check size={14} />
         {copy.approveConnectorTask}
       </Button>
+    </div>
+  )
+}
+
+function AskUserPromptCard({
+  prompt,
+  copy,
+  disabled,
+  onSubmit,
+}: {
+  prompt: AskUserPromptData
+  copy: ChatCopy
+  disabled: boolean
+  onSubmit: (text: string) => void
+}) {
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [customText, setCustomText] = useState("")
+
+  const toggleOption = (label: string) => {
+    if (disabled) {
+      return
+    }
+    if (!prompt.multiSelect) {
+      onSubmit(label)
+      return
+    }
+    setSelectedLabels((current) => current.includes(label) ? current.filter((item) => item !== label) : [...current, label])
+  }
+
+  const submitAnswer = () => {
+    if (disabled) {
+      return
+    }
+    const parts = prompt.multiSelect ? [...selectedLabels] : []
+    const text = customText.trim()
+    if (text) {
+      parts.push(text)
+    }
+    if (parts.length === 0) {
+      return
+    }
+    onSubmit(parts.join("、"))
+  }
+
+  return (
+    <div className="space-y-2 rounded-md border border-primary/40 bg-primary/5 p-3 text-sm shadow-sm">
+      <div className="flex items-start gap-2">
+        <MessageCircleQuestion size={15} className="mt-0.5 shrink-0 text-primary" />
+        <div className="min-w-0 flex-1">
+          <div className="text-xs font-medium text-muted-foreground">{copy.askUserTitle}</div>
+          <div className="mt-0.5 whitespace-pre-wrap break-words text-foreground">{prompt.question}</div>
+        </div>
+      </div>
+      {prompt.options.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {prompt.options.map((option) => {
+            const selected = prompt.multiSelect && selectedLabels.includes(option.label)
+            return (
+              <button
+                key={option.label}
+                type="button"
+                disabled={disabled}
+                title={option.description || undefined}
+                onClick={() => toggleOption(option.label)}
+                className={cn(
+                  "max-w-full rounded-md border px-3 py-1.5 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                  selected ? "border-primary bg-primary/15 text-foreground" : "border-border bg-background hover:border-primary/60 hover:bg-muted"
+                )}
+              >
+                <span className="flex items-center gap-1.5">
+                  {prompt.multiSelect && (
+                    <span className={cn("flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border", selected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/50")}>
+                      {selected && <Check size={10} />}
+                    </span>
+                  )}
+                  <span className="break-words font-medium">{option.label}</span>
+                </span>
+                {option.description && <span className="mt-0.5 block break-words text-muted-foreground">{option.description}</span>}
+              </button>
+            )
+          })}
+        </div>
+      )}
+      {(prompt.multiSelect || prompt.allowCustom) && (
+        <div className="flex items-center gap-2">
+          {prompt.allowCustom && (
+            <input
+              value={customText}
+              disabled={disabled}
+              onChange={(event) => setCustomText(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                  event.preventDefault()
+                  submitAnswer()
+                }
+              }}
+              placeholder={copy.askUserCustomPlaceholder}
+              className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 text-xs outline-none focus:border-primary/60 disabled:opacity-60"
+            />
+          )}
+          {(prompt.multiSelect || customText.trim() !== "") && (
+            <Button
+              size="sm"
+              className="h-8 shrink-0 text-xs"
+              disabled={disabled || (selectedLabels.length === 0 && customText.trim() === "")}
+              onClick={submitAnswer}
+            >
+              {prompt.multiSelect ? copy.askUserConfirm : copy.send}
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -8236,6 +8447,9 @@ const chatCopyKeys = {
   taskStatusInProgress: "chat.taskStatusInProgress",
   taskStatusCompleted: "chat.taskStatusCompleted",
   taskStatusSkipped: "chat.taskStatusSkipped",
+  askUserTitle: "chat.askUserTitle",
+  askUserConfirm: "chat.askUserConfirm",
+  askUserCustomPlaceholder: "chat.askUserCustomPlaceholder",
   expandToolCall: "chat.expandToolCall",
   toolStatusOk: "chat.toolStatusOk",
   toolStatusRunning: "chat.toolStatusRunning",
