@@ -138,7 +138,12 @@ function SettingsSidebar({ pathname, copy, onLogout, className, onNavigate }: {
               key={item.href}
               to={item.href}
               onClick={onNavigate}
-              className={cn("flex h-11 items-center gap-3 rounded-2xl px-3 text-sm transition-colors hover:bg-muted", active && "bg-primary font-medium text-primary-foreground shadow-sm")}
+              className={cn(
+                "flex h-11 items-center gap-3 rounded-2xl px-3 text-sm transition-colors",
+                // hover 底色只用于非激活项：激活项已是 bg-primary，若再套 hover:bg-muted
+                // 会在悬停时把背景换成浅色而文字仍是 primary-foreground，看起来像变色异常
+                active ? "bg-primary font-medium text-primary-foreground shadow-sm" : "hover:bg-muted",
+              )}
             >
               <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-xl", active ? "bg-primary-foreground/15 text-primary-foreground" : item.colorClass)}>
                 <Icon size={16} />

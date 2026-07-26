@@ -204,7 +204,13 @@ function SidebarLink({
 
 function isSidebarItemActive(pathname: string, item: MenuItem) {
   if (item.children?.length) {
-    return pathname === item.path || item.children.some((child) => pathname === child.path) || pathname.startsWith("/dashboard/admin/")
+    if (pathname === item.path || item.children.some((child) => pathname === child.path || pathname.startsWith(child.path + "/"))) {
+      return true
+    }
+    // 兜底：订阅、兑换码等未列入子菜单的 /dashboard/admin/* 页面仍归属系统管理，
+    // 但要排除属于其它菜单项的路径（如工单管理 /dashboard/admin/tickets），
+    // 否则两个菜单会同时高亮
+    return pathname.startsWith("/dashboard/admin/") && !pathname.startsWith("/dashboard/admin/tickets")
   }
   return pathname === item.path
 }
