@@ -230,7 +230,7 @@ export default function AgentGroups() {
           <p className="mt-1 text-sm text-muted-foreground">{copy.subtitle}</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Select value={String((selectedDeviceID) || "__shadcn_empty__")} onValueChange={(value) => setSelectedDeviceID((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 min-w-60 rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+          <Select value={String((selectedDeviceID) || "__shadcn_empty__")} onValueChange={(value) => setSelectedDeviceID((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 min-w-60 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
             <SelectItem value="__shadcn_empty__">{copy.selectDevice}</SelectItem>
             {devices.map((device) => (
               <SelectItem key={device.id} value={String(device.id)}>
@@ -323,7 +323,7 @@ export default function AgentGroups() {
                       <Input value={agent.name} onChange={(event) => updateAgent(index, { name: event.target.value })} />
                     </Field>
                     <Field label={copy.agentType}>
-                      <Select value={String((agent.type) || "__shadcn_empty__")} onValueChange={(value) => updateAgent(index, { type: (value === "__shadcn_empty__" ? "" : value) as AgentGroupAgent["type"] })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                      <Select value={String((agent.type) || "__shadcn_empty__")} onValueChange={(value) => updateAgent(index, { type: (value === "__shadcn_empty__" ? "" : value) as AgentGroupAgent["type"] })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                         <SelectItem value="chief">chief</SelectItem>
                         <SelectItem value="worker">worker</SelectItem>
                         <SelectItem value="critic">critic</SelectItem>
@@ -332,7 +332,7 @@ export default function AgentGroups() {
                       </SelectContent></Select>
                     </Field>
                     <Field label={copy.boundAgent}>
-                      <Select value={String((agent.chat_agent_id || "") || "__shadcn_empty__")} onValueChange={(value) => selectChatAgent(index, (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                      <Select value={String((agent.chat_agent_id || "") || "__shadcn_empty__")} onValueChange={(value) => selectChatAgent(index, (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                         <SelectItem value="__shadcn_empty__">{chatAgents.length ? copy.selectAgent : copy.noAgents}</SelectItem>
                         {chatAgents.map((item) => (
                           <SelectItem key={item.id} value={String(item.id)}>

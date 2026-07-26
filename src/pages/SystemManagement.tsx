@@ -1077,7 +1077,7 @@ export default function SystemManagement({ section = "general", initialTab }: { 
           <div className="grid gap-4 lg:grid-cols-2">
             <label className="grid gap-2 text-sm lg:col-span-2">
               <span className="font-medium">{copy.systemMode}</span>
-              <Select value={String((form.system_mode || "operation") || "__shadcn_empty__")} onValueChange={(value) => updateField("system_mode", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+              <Select value={String((form.system_mode || "operation") || "__shadcn_empty__")} onValueChange={(value) => updateField("system_mode", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                 <SelectItem value="operation">{copy.systemModeOperation}</SelectItem>
                 <SelectItem value="personal">{copy.systemModePersonal}</SelectItem>
 				<SelectItem value="enterprise">{copy.systemModeEnterprise}</SelectItem>
@@ -1160,7 +1160,7 @@ export default function SystemManagement({ section = "general", initialTab }: { 
                 />
                 <label className="block space-y-2 text-sm">
                   <span className="font-medium">{copy.groupMultiplierMode}</span>
-                  <Select value={String((form.group_multiplier_mode || "min") || "__shadcn_empty__")} onValueChange={(value) => updateField("group_multiplier_mode", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                  <Select value={String((form.group_multiplier_mode || "min") || "__shadcn_empty__")} onValueChange={(value) => updateField("group_multiplier_mode", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                     <SelectItem value="min">{copy.groupModeMin}</SelectItem>
                     <SelectItem value="max">{copy.groupModeMax}</SelectItem>
                   </SelectContent></Select>
@@ -1240,7 +1240,7 @@ export default function SystemManagement({ section = "general", initialTab }: { 
               <ToggleField label={copy.sensitiveFilterEnabled} checked={form.sensitive_filter_enabled} onChange={(checked) => updateField("sensitive_filter_enabled", checked)} />
               <label className="block space-y-2 text-sm">
                 <span className="font-medium">{copy.sensitiveFilterScope}</span>
-                <Select value={String((form.sensitive_filter_scope || "request") || "__shadcn_empty__")} onValueChange={(value) => updateField("sensitive_filter_scope", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((form.sensitive_filter_scope || "request") || "__shadcn_empty__")} onValueChange={(value) => updateField("sensitive_filter_scope", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="request">{copy.filterScopeRequest}</SelectItem>
                   <SelectItem value="request_response">{copy.filterScopeRequestResponse}</SelectItem>
                 </SelectContent></Select>
@@ -1296,7 +1296,7 @@ export default function SystemManagement({ section = "general", initialTab }: { 
             <EmailSuffixRoutingEditor value={form.registration_email_routing} groups={groups} onChange={(value) => updateField("registration_email_routing", value)} />
             <label className="block space-y-2 text-sm">
               <span className="font-medium">{copy.authAgreementMode}</span>
-              <Select value={String((form.auth_agreement_mode || "notice") || "__shadcn_empty__")} onValueChange={(value) => updateField("auth_agreement_mode", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+              <Select value={String((form.auth_agreement_mode || "notice") || "__shadcn_empty__")} onValueChange={(value) => updateField("auth_agreement_mode", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                 <SelectItem value="notice">{copy.authAgreementModeNotice}</SelectItem>
                 <SelectItem value="checkbox">{copy.authAgreementModeCheckbox}</SelectItem>
               </SelectContent></Select>
@@ -1333,7 +1333,7 @@ export default function SystemManagement({ section = "general", initialTab }: { 
               <ToggleField label={copy.smsBindingRequired} checked={form.sms_binding_required} onChange={(checked) => updateField("sms_binding_required", checked)} />
               <label className="block space-y-2 text-sm">
                 <span className="font-medium">{copy.smsProvider}</span>
-                <Select value={form.sms_provider || "aliyun"} onValueChange={(value) => updateField("sms_provider", value)}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={form.sms_provider || "aliyun"} onValueChange={(value) => updateField("sms_provider", value)}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="aliyun">{copy.smsProviderAliyun}</SelectItem>
                   <SelectItem value="tencent">{copy.smsProviderTencent}</SelectItem>
                 </SelectContent></Select>
@@ -1669,7 +1669,7 @@ export default function SystemManagement({ section = "general", initialTab }: { 
             <div className="grid gap-3 lg:grid-cols-2">
               <label className="grid gap-2 text-sm">
                 <span className="font-medium">{copy.logStorageMode}</span>
-                <Select value={form.log_storage_mode} onValueChange={(value) => updateField("log_storage_mode", value)}><SelectTrigger className="h-10 rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={form.log_storage_mode} onValueChange={(value) => updateField("log_storage_mode", value)}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="single">{copy.logStorageSingle}</SelectItem>
                   <SelectItem value="daily">{copy.logStorageDaily}</SelectItem>
                 </SelectContent></Select>
@@ -2057,21 +2057,21 @@ export default function SystemManagement({ section = "general", initialTab }: { 
               </div>
               <div className="grid gap-3 lg:grid-cols-[1.5fr_160px_180px_180px]">
                 <Input value={redeemSearch} placeholder={copy.redeemSearchPlaceholder} onChange={(event) => setRedeemSearch(event.target.value)} />
-                <Select value={String((redeemStatusFilter) || "__shadcn_empty__")} onValueChange={(value) => setRedeemStatusFilter((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((redeemStatusFilter) || "__shadcn_empty__")} onValueChange={(value) => setRedeemStatusFilter((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="all">{copy.filterAllStatus}</SelectItem>
                   <SelectItem value="enabled">{copy.filterEnabled}</SelectItem>
                   <SelectItem value="disabled">{copy.filterDisabled}</SelectItem>
                   <SelectItem value="expired">{copy.filterExpired}</SelectItem>
                   <SelectItem value="used_up">{copy.filterUsedUp}</SelectItem>
                 </SelectContent></Select>
-                <Select value={String((redeemGroupFilter) || "__shadcn_empty__")} onValueChange={(value) => setRedeemGroupFilter((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((redeemGroupFilter) || "__shadcn_empty__")} onValueChange={(value) => setRedeemGroupFilter((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="all">{copy.filterAllGroups}</SelectItem>
                   <SelectItem value="none">{copy.noGroupGrant}</SelectItem>
                   {groups.map((group) => (
                     <SelectItem key={group.id} value={String(group.id)}>{group.name}</SelectItem>
                   ))}
                 </SelectContent></Select>
-                <Select value={String((redeemSort) || "__shadcn_empty__")} onValueChange={(value) => setRedeemSort((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((redeemSort) || "__shadcn_empty__")} onValueChange={(value) => setRedeemSort((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="created_desc">{copy.sortCreatedDesc}</SelectItem>
                   <SelectItem value="created_asc">{copy.sortCreatedAsc}</SelectItem>
                   <SelectItem value="code_asc">{copy.sortCodeAsc}</SelectItem>
@@ -2969,14 +2969,14 @@ function StatusMonitorDialog({
           />
           <label className="block space-y-2 text-sm">
             <span className="font-medium">{copy.checkType}</span>
-            <Select value={String((draft.check_type) || "__shadcn_empty__")} onValueChange={(value) => onDraftChange({ ...draft, check_type: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+            <Select value={String((draft.check_type) || "__shadcn_empty__")} onValueChange={(value) => onDraftChange({ ...draft, check_type: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
               <SelectItem value="http">{copy.checkTypeHTTP}</SelectItem>
               <SelectItem value="tcp">{copy.checkTypeTCP}</SelectItem>
             </SelectContent></Select>
           </label>
           <label className="block space-y-2 text-sm">
             <span className="font-medium">{copy.httpMethod}</span>
-            <Select value={String((draft.method) || "__shadcn_empty__")} onValueChange={(value) => onDraftChange({ ...draft, method: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+            <Select value={String((draft.method) || "__shadcn_empty__")} onValueChange={(value) => onDraftChange({ ...draft, method: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
               <SelectItem value="GET">GET</SelectItem>
               <SelectItem value="HEAD">HEAD</SelectItem>
             </SelectContent></Select>
@@ -3118,7 +3118,7 @@ function RedeemCodeDialog({
           </label>
           <label className="block space-y-2 text-sm">
             <span className="font-medium">{copy.groupGrant}</span>
-            <Select value={String((draft.group_id) || "__shadcn_empty__")} onValueChange={(value) => onDraftChange({ ...draft, group_id: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+            <Select value={String((draft.group_id) || "__shadcn_empty__")} onValueChange={(value) => onDraftChange({ ...draft, group_id: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
               <SelectItem value="__shadcn_empty__">{copy.noGroupGrant}</SelectItem>
               {groups.map((group) => (
                 <SelectItem key={group.id} value={String(group.id)}>{group.name}</SelectItem>
@@ -3134,7 +3134,7 @@ function RedeemCodeDialog({
           />
           <label className="block space-y-2 text-sm">
             <span className="font-medium">{copy.subscriptionPlan}</span>
-            <Select value={String((draft.subscription_plan_id) || "__shadcn_empty__")} onValueChange={(value) => onDraftChange({ ...draft, subscription_plan_id: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+            <Select value={String((draft.subscription_plan_id) || "__shadcn_empty__")} onValueChange={(value) => onDraftChange({ ...draft, subscription_plan_id: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
               <SelectItem value="__shadcn_empty__">{copy.noSubscriptionPlan}</SelectItem>
               {subscriptionPlans.filter((plan) => plan.enabled).map((plan) => (
                 <SelectItem key={plan.id} value={String(plan.id)}>{plan.name}</SelectItem>
@@ -3273,7 +3273,7 @@ function MetaModelDialog({
                     output_price: billingMode === "meta" ? draft.output_price : "0",
                     cached_input_price: billingMode === "meta" ? draft.cached_input_price : "0",
                   })
-                }}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                }}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                 <SelectItem value="actual">{copy.billingModeActual}</SelectItem>
                 <SelectItem value="meta">{copy.billingModeMeta}</SelectItem>
               </SelectContent></Select>
@@ -3478,7 +3478,7 @@ function EmailSuffixRoutingEditor({ value, groups, onChange }: { value: string; 
   // Preserve incomplete rows while the administrator is editing. The backend
   // safely ignores incomplete mappings at registration time.
   const setRules = (next: Array<{ suffix: string; group_id: number }>) => onChange(JSON.stringify(next))
-  return <div className="space-y-2 rounded-md border p-3 lg:col-span-2"><div><div className="font-medium text-sm">邮箱后缀自动分组</div><p className="mt-1 text-xs text-muted-foreground">用户注册时，匹配的邮箱后缀会自动加入对应用户分组。</p></div>{rules.map((rule, index) => <div key={`${rule.suffix}-${index}`} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"><Input value={rule.suffix} placeholder="company.cn" onChange={(event) => setRules(rules.map((item, itemIndex) => itemIndex === index ? { ...item, suffix: event.target.value.replace(/^@/, "") } : item))} /><Select value={String((rule.group_id) || "__shadcn_empty__")} onValueChange={(value) => setRules(rules.map((item, itemIndex) => itemIndex === index ? { ...item, group_id: Number((value === "__shadcn_empty__" ? "" : value)) } : item))}><SelectTrigger className="h-10 rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="0">选择分组</SelectItem>{groups.map((group) => <SelectItem key={group.id} value={String(group.id)}>{group.name}</SelectItem>)}</SelectContent></Select><Button type="button" variant="outline" onClick={() => setRules(rules.filter((_, itemIndex) => itemIndex !== index))}>删除</Button></div>)}<Button type="button" size="sm" variant="outline" disabled={!groups.length} onClick={() => setRules([...rules, { suffix: "", group_id: groups[0]?.id || 0 }])}>添加映射</Button>{!groups.length && <p className="text-xs text-muted-foreground">请先在“用户分组”中创建分组。</p>}</div>
+  return <div className="space-y-2 rounded-md border p-3 lg:col-span-2"><div><div className="font-medium text-sm">邮箱后缀自动分组</div><p className="mt-1 text-xs text-muted-foreground">用户注册时，匹配的邮箱后缀会自动加入对应用户分组。</p></div>{rules.map((rule, index) => <div key={`${rule.suffix}-${index}`} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"><Input value={rule.suffix} placeholder="company.cn" onChange={(event) => setRules(rules.map((item, itemIndex) => itemIndex === index ? { ...item, suffix: event.target.value.replace(/^@/, "") } : item))} /><Select value={String((rule.group_id) || "__shadcn_empty__")} onValueChange={(value) => setRules(rules.map((item, itemIndex) => itemIndex === index ? { ...item, group_id: Number((value === "__shadcn_empty__" ? "" : value)) } : item))}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="0">选择分组</SelectItem>{groups.map((group) => <SelectItem key={group.id} value={String(group.id)}>{group.name}</SelectItem>)}</SelectContent></Select><Button type="button" variant="outline" onClick={() => setRules(rules.filter((_, itemIndex) => itemIndex !== index))}>删除</Button></div>)}<Button type="button" size="sm" variant="outline" disabled={!groups.length} onClick={() => setRules([...rules, { suffix: "", group_id: groups[0]?.id || 0 }])}>添加映射</Button>{!groups.length && <p className="text-xs text-muted-foreground">请先在“用户分组”中创建分组。</p>}</div>
 }
 
 function groupPayload(draft: GroupDraft) {

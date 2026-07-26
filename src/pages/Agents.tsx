@@ -449,7 +449,7 @@ export default function Agents() {
                     if (defaultModel && !nextModels.includes(defaultModel)) {
                       setDefaultModel("")
                     }
-                  }}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                  }}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="__shadcn_empty__">{copy.noChannel}</SelectItem>
                   {catalog.map((channel) => (
                     <SelectItem key={channel.id} value={String(channel.id)}>
@@ -460,7 +460,7 @@ export default function Agents() {
               </label>
               <label className="space-y-1 text-sm">
                 <span className="font-medium">{t("chat.agentDefaultModel")}</span>
-                <Select value={String((defaultModel) || "__shadcn_empty__")} onValueChange={(value) => setDefaultModel((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((defaultModel) || "__shadcn_empty__")} onValueChange={(value) => setDefaultModel((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="__shadcn_empty__">{t("chat.noDefaultModel")}</SelectItem>
                   {editModelSelectOptions.map((model) => (
                     <SelectItem key={model} value={String(model)}>
@@ -552,7 +552,7 @@ export default function Agents() {
                     if (createDefaultModel && !nextModels.includes(createDefaultModel)) {
                       setCreateDefaultModel("")
                     }
-                  }}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                  }}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="__shadcn_empty__">{copy.noChannel}</SelectItem>
                   {catalog.map((channel) => (
                     <SelectItem key={channel.id} value={String(channel.id)}>
@@ -563,7 +563,7 @@ export default function Agents() {
               </label>
               <label className="space-y-1 text-sm">
                 <span className="font-medium">{t("chat.agentDefaultModel")}</span>
-                <Select value={String((createDefaultModel) || "__shadcn_empty__")} onValueChange={(value) => setCreateDefaultModel((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((createDefaultModel) || "__shadcn_empty__")} onValueChange={(value) => setCreateDefaultModel((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="__shadcn_empty__">{t("chat.noDefaultModel")}</SelectItem>
                   {createModelSelectOptions.map((model) => (
                     <SelectItem key={model} value={String(model)}>
@@ -633,7 +633,7 @@ export default function Agents() {
           <div className="space-y-4">
             <label className="space-y-1 text-sm">
               <span className="font-medium">{copy.generationSource}</span>
-              <Select value={String((generationSourceAgentID) || "__shadcn_empty__")} onValueChange={(value) => setGenerationSourceAgentID((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+              <Select value={String((generationSourceAgentID) || "__shadcn_empty__")} onValueChange={(value) => setGenerationSourceAgentID((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                 <SelectItem value="__shadcn_empty__">{copy.generationSourcePlaceholder}</SelectItem>
                 {agents.map((agent) => (
                   <SelectItem key={agent.id} value={String(agent.id)}>

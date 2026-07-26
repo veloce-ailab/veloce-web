@@ -555,7 +555,7 @@ function UserChannelDialog({
             />
           </FieldLabel>
           <FieldLabel label={copy.routingAlgorithm}>
-            <Select value={String((draft.routing_algorithm || "priority") || "__shadcn_empty__")} onValueChange={(value) => setDraft({ ...draft, routing_algorithm: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+            <Select value={String((draft.routing_algorithm || "priority") || "__shadcn_empty__")} onValueChange={(value) => setDraft({ ...draft, routing_algorithm: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
               {routingAlgorithmOptions(copy).map((item) => (
                 <SelectItem key={item.value} value={String(item.value)}>{item.label}</SelectItem>
               ))}
@@ -636,7 +636,7 @@ function UpstreamDialog({
             <Input value={draft.name || ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder={t("channels.name")} />
           </FieldLabel>
           <FieldLabel label={t("channels.type")}>
-            <Select value={String((selectedType) || "__shadcn_empty__")} onValueChange={(value) => updateType((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+            <Select value={String((selectedType) || "__shadcn_empty__")} onValueChange={(value) => updateType((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
               {providerTypes.map((item) => (
                 <SelectItem key={item.value} value={String(item.value)}>{item.label}</SelectItem>
               ))}
@@ -671,7 +671,7 @@ function UpstreamDialog({
 		  </FieldLabel>
 		  {pluginFields.map((field) => <PluginUpstreamConfigControl key={field.name} field={field} value={pluginConfig[field.name]} settings={pluginSettings?.config} onChange={(value) => updatePluginConfig(field.name, value)} />)}
           <FieldLabel label={t("admin.userChannel")}>
-            <Select value={String((draft.user_channel_id || "") || "__shadcn_empty__")} onValueChange={(value) => setDraft({ ...draft, user_channel_id: Number((value === "__shadcn_empty__" ? "" : value)) || null })}><SelectTrigger className="h-10 rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+            <Select value={String((draft.user_channel_id || "") || "__shadcn_empty__")} onValueChange={(value) => setDraft({ ...draft, user_channel_id: Number((value === "__shadcn_empty__" ? "" : value)) || null })}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
               <SelectItem value="__shadcn_empty__">{t("admin.selectUserChannel")}</SelectItem>
               {userChannels.map((item) => (
                 <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>
@@ -938,7 +938,7 @@ function UpstreamModelConfigDialog({
         <div className="min-h-0 space-y-4 overflow-y-auto overflow-x-hidden pr-1">
           <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
             <FieldLabel label={copy.syncFormat}>
-              <Select value={String((syncFormat) || "__shadcn_empty__")} onValueChange={(value) => setSyncFormat((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+              <Select value={String((syncFormat) || "__shadcn_empty__")} onValueChange={(value) => setSyncFormat((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                 {syncFormatOptionLabels(language).map((option) => (
                   <SelectItem key={option.value} value={String(option.value)}>{option.label}</SelectItem>
                 ))}
@@ -1100,7 +1100,7 @@ function ChannelModelDialog({
                 }
                 const preset = providerPresets.find((item) => item.id === providerID)
                 setDraft({ ...draft, provider: providerID, provider_icon_url: preset?.iconURL || "" })
-              }}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+              }}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
               <SelectItem value="auto">{copy.autoProvider}</SelectItem>
               {providerPresets.map((provider) => (
                 <SelectItem key={provider.id} value={String(provider.id)}>{provider.name}</SelectItem>
@@ -1417,7 +1417,7 @@ function PluginUpstreamConfigControl({ field, value, settings, onChange }: { fie
     return <div className="flex items-center justify-between gap-3 rounded-md border p-3"><div><div className="text-sm font-medium">{field.label}</div>{field.description && <p className="mt-1 text-xs text-muted-foreground">{field.description}</p>}</div><Switch checked={Boolean(value)} onCheckedChange={onChange} /></div>
   }
   if (field.type === "select" || field.type === "enum") {
-    return <FieldLabel label={`${field.label}${field.required ? " *" : ""}`}><Select value={String(value || "__plugin_empty__")} onValueChange={(next) => onChange(next === "__plugin_empty__" ? "" : next)}><SelectTrigger className="h-10 rounded-2xl border bg-background px-3 text-sm"><SelectValue placeholder={field.placeholder || "Select"} /></SelectTrigger><SelectContent>{!field.required && <SelectItem value="__plugin_empty__">Not set</SelectItem>}{options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select>{field.description && <p className="text-xs text-muted-foreground">{field.description}</p>}</FieldLabel>
+    return <FieldLabel label={`${field.label}${field.required ? " *" : ""}`}><Select value={String(value || "__plugin_empty__")} onValueChange={(next) => onChange(next === "__plugin_empty__" ? "" : next)}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue placeholder={field.placeholder || "Select"} /></SelectTrigger><SelectContent>{!field.required && <SelectItem value="__plugin_empty__">Not set</SelectItem>}{options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select>{field.description && <p className="text-xs text-muted-foreground">{field.description}</p>}</FieldLabel>
   }
   if (field.type === "textarea" || field.type === "text") {
     return <FieldLabel label={`${field.label}${field.required ? " *" : ""}`}><textarea className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm" value={String(value ?? "")} placeholder={field.placeholder} onChange={(event) => onChange(event.target.value)} />{field.description && <p className="text-xs text-muted-foreground">{field.description}</p>}</FieldLabel>

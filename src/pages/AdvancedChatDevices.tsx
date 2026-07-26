@@ -311,7 +311,7 @@ export default function AdvancedChatDevices() {
                   if (mode === "web_server" && !listenPort) {
                     setListenPort(8080)
                   }
-                }}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                }}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                 <SelectItem value="platform">{copy.standardDevice}</SelectItem>
                 <SelectItem value="web_server">{copy.websiteDevice}</SelectItem>
               </SelectContent></Select>

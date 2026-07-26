@@ -233,12 +233,12 @@ export default function Wallet() {
               </div>
               <div className="grid gap-2 sm:grid-cols-[1fr_160px_180px]">
                 <Input value={rechargeAmount} type="number" min="0" placeholder={copy.rechargeAmountPlaceholder} onChange={(event) => setRechargeAmount(event.target.value)} />
-                <Select value={String((paymentMethod) || "__shadcn_empty__")} onValueChange={(value) => { setPaymentMethod(value === "__shadcn_empty__" ? "" : value); setPaymentChannel("") }}><SelectTrigger className="h-10 rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((paymentMethod) || "__shadcn_empty__")} onValueChange={(value) => { setPaymentMethod(value === "__shadcn_empty__" ? "" : value); setPaymentChannel("") }}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   {(paymentConfig?.methods || parseJSONList(publicSettings.payment_methods)).map((method) => (
                     <SelectItem key={method} value={String(method)}>{paymentMethodLabel(method, copy)}</SelectItem>
                   ))}
                 </SelectContent></Select>
-                <Select value={String(paymentChannel || "__shadcn_empty__")} onValueChange={(value) => setPaymentChannel(value === "__shadcn_empty__" ? "" : value)} disabled={availablePaymentChannels.length === 0}><SelectTrigger className="h-10 rounded-2xl border bg-background px-3 text-sm"><SelectValue placeholder={copy.paymentChannel} /></SelectTrigger><SelectContent>
+                <Select value={String(paymentChannel || "__shadcn_empty__")} onValueChange={(value) => setPaymentChannel(value === "__shadcn_empty__" ? "" : value)} disabled={availablePaymentChannels.length === 0}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue placeholder={copy.paymentChannel} /></SelectTrigger><SelectContent>
                   {availablePaymentChannels.map((channel) => <SelectItem key={channel.id} value={channel.id}>{channel.name}</SelectItem>)}
                 </SelectContent></Select>
               </div>

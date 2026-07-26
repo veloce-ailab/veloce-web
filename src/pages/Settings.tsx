@@ -415,7 +415,7 @@ export default function Settings({ section = "profile" }: { section?: SettingsSe
                   if (titleModelName && !nextModels.includes(titleModelName)) {
                     setTitleModelName("")
                   }
-                }}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                }}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                 <SelectItem value="__shadcn_empty__">{copy.anyChannel}</SelectItem>
                 {catalog.map((channel) => (
                   <SelectItem key={channel.id} value={String(channel.id)}>
@@ -426,7 +426,7 @@ export default function Settings({ section = "profile" }: { section?: SettingsSe
             </label>
             <label className="space-y-1 text-sm">
               <span className="font-medium">{copy.titleModel}</span>
-              <Select value={String((titleModelName) || "__shadcn_empty__")} onValueChange={(value) => setTitleModelName((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+              <Select value={String((titleModelName) || "__shadcn_empty__")} onValueChange={(value) => setTitleModelName((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                 <SelectItem value="__shadcn_empty__">{copy.titleDisabled}</SelectItem>
                 {titleSelectOptions.map((model) => (
                   <SelectItem key={model} value={String(model)}>
@@ -437,7 +437,7 @@ export default function Settings({ section = "profile" }: { section?: SettingsSe
             </label>
             <label className="space-y-1 text-sm">
               <span className="font-medium">{copy.titleScope}</span>
-              <Select value={String((titleGenerationScope) || "__shadcn_empty__")} onValueChange={(value) => setTitleGenerationScope(normalizeTitleScope((value === "__shadcn_empty__" ? "" : value)))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+              <Select value={String((titleGenerationScope) || "__shadcn_empty__")} onValueChange={(value) => setTitleGenerationScope(normalizeTitleScope((value === "__shadcn_empty__" ? "" : value)))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                 <SelectItem value="recent">{copy.titleScopeRecent}</SelectItem>
                 <SelectItem value="all">{copy.titleScopeAll}</SelectItem>
               </SelectContent></Select>
@@ -455,7 +455,7 @@ export default function Settings({ section = "profile" }: { section?: SettingsSe
             <div className="text-sm text-muted-foreground">{copy.connectorApprovalDescription}</div>
             <label className="space-y-1 text-sm">
               <span className="font-medium">{copy.approvalAssistant}</span>
-              <Select value={String((connectorApprovalAgentID) || "__shadcn_empty__")} onValueChange={(value) => setConnectorApprovalAgentID((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+              <Select value={String((connectorApprovalAgentID) || "__shadcn_empty__")} onValueChange={(value) => setConnectorApprovalAgentID((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                 <SelectItem value="__shadcn_empty__">{copy.noApprovalAssistant}</SelectItem>
                 {advancedChatAgents.map((agent) => (
                   <SelectItem key={agent.id} value={String(agent.id)}>{agent.name}</SelectItem>

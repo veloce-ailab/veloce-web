@@ -291,7 +291,7 @@ export default function Videos() {
             </label>
             <label className="block space-y-2 text-sm">
               <span className="font-medium">{copy.model}</span>
-              <Select value={String((modelName) || "__shadcn_empty__")} onValueChange={(value) => setModelName((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+              <Select value={String((modelName) || "__shadcn_empty__")} onValueChange={(value) => setModelName((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                 <SelectItem value="__shadcn_empty__">{copy.selectModel}</SelectItem>
                 {modelOptions.map((model) => (
                   <SelectItem key={model} value={String(model)}>
@@ -309,7 +309,7 @@ export default function Videos() {
               <label className="block space-y-2 text-sm">
                 <span className="font-medium">{copy.duration}</span>
                 {durationOptions.length > 0 ? (
-                  <Select value={String((duration) || "__shadcn_empty__")} onValueChange={(value) => setDuration(normalizeDuration((value === "__shadcn_empty__" ? "" : value)))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                  <Select value={String((duration) || "__shadcn_empty__")} onValueChange={(value) => setDuration(normalizeDuration((value === "__shadcn_empty__" ? "" : value)))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                     {durationOptions.map((option) => (
                       <SelectItem key={option} value={String(option)}>{option}s</SelectItem>
                     ))}
@@ -473,7 +473,7 @@ function OptionField({
   return (
     <label className="block space-y-2 text-sm">
       <span className="font-medium">{label}</span>
-      <Select value={String((value) || "__shadcn_empty__")} onValueChange={(value) => onChange((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+      <Select value={String((value) || "__shadcn_empty__")} onValueChange={(value) => onChange((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
         {options.map((option) => (
           <SelectItem key={option} value={String(option)}>
             {option === "auto" ? autoLabel : option}

@@ -872,7 +872,7 @@ function TencentChannelTab({ copy, draft, current, onAdvancedChange }: { copy: C
                 {loadGuilds.isPending ? copy.loading : copy.tencentRefreshGuilds}
               </Button>
             </div>
-            <Select value={String((selectedGuildID) || "__shadcn_empty__")} onValueChange={(value) => selectGuild((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+            <Select value={String((selectedGuildID) || "__shadcn_empty__")} onValueChange={(value) => selectGuild((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
               <SelectItem value="__shadcn_empty__">{copy.tencentSelectGuild}</SelectItem>
               {guilds.map((guild) => (
                 <SelectItem key={guild.id} value={String(guild.id)}>{guild.name}{guild.role ? ` · ${guild.role}` : ""}</SelectItem>
@@ -888,7 +888,7 @@ function TencentChannelTab({ copy, draft, current, onAdvancedChange }: { copy: C
                 {loadChannels.isPending ? copy.loading : copy.tencentRefreshChannels}
               </Button>
             </div>
-            <Select value={String((selectedChannelID) || "__shadcn_empty__")} onValueChange={(value) => updateConfig("channel_id", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+            <Select value={String((selectedChannelID) || "__shadcn_empty__")} onValueChange={(value) => updateConfig("channel_id", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
               <SelectItem value="__shadcn_empty__">{copy.tencentSelectChannel}</SelectItem>
               {channels.map((channel) => (
                 <SelectItem key={channel.id} value={String(channel.id)}>{channel.name}</SelectItem>
@@ -1530,7 +1530,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function SelectField({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: ReactNode }) {
   return (
     <Field label={label}>
-      <Select value={String((value) || "__shadcn_empty__")} onValueChange={(value) => onChange((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+      <Select value={String((value) || "__shadcn_empty__")} onValueChange={(value) => onChange((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
         {children}
       </SelectContent></Select>
     </Field>

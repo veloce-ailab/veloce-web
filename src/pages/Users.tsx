@@ -214,7 +214,7 @@ export default function Users() {
               </label>
               <label className="block space-y-1 text-sm">
                 <span className="font-medium">{copy.primaryGroup}</span>
-                <Select value={String((editingUser.group_id) || "__shadcn_empty__")} onValueChange={(value) => setEditingUser({ ...editingUser, group_id: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((editingUser.group_id) || "__shadcn_empty__")} onValueChange={(value) => setEditingUser({ ...editingUser, group_id: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="__shadcn_empty__">{copy.selectGroup}</SelectItem>
                   {groups.map((group) => (
                     <SelectItem key={group.id} value={String(group.id)}>{group.name}</SelectItem>

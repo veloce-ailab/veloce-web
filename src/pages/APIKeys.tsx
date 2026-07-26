@@ -562,7 +562,7 @@ function RestrictionPicker({
     <div className="grid gap-4 lg:grid-cols-2">
       <div className="space-y-2">
         <div className="text-sm font-medium">{t("settings.userChannels")}</div>
-        <Select value={String((channelId || "") || "__shadcn_empty__")} onValueChange={(value) => onChannelIdChange(Number((value === "__shadcn_empty__" ? "" : value)) || 0)}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue>
+        <Select value={String((channelId || "") || "__shadcn_empty__")} onValueChange={(value) => onChannelIdChange(Number((value === "__shadcn_empty__" ? "" : value)) || 0)}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue>
           {selectedChannel ? (
             <span className="flex items-center gap-2">
               <span className="truncate">{selectedChannel.name}</span>

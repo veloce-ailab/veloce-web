@@ -355,7 +355,7 @@ export default function Models() {
         <CardContent>
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
             <FieldLabel label={copy.sourceChannel}>
-              <Select value={String((priceChannelID || "") || "__shadcn_empty__")} onValueChange={(value) => setPriceChannelID(Number((value === "__shadcn_empty__" ? "" : value)) || 0)}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+              <Select value={String((priceChannelID || "") || "__shadcn_empty__")} onValueChange={(value) => setPriceChannelID(Number((value === "__shadcn_empty__" ? "" : value)) || 0)}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                 <SelectItem value="__shadcn_empty__">{copy.selectChannel}</SelectItem>
                 {channels.map((channel) => (
                   <SelectItem key={channel.id} value={String(channel.id)}>{channel.name}</SelectItem>
@@ -520,7 +520,7 @@ function ModelDialog({
                 }
                 const preset = providerPresets.find((item) => item.id === providerID)
                 setDraft({ ...draft, provider: providerID, provider_icon_url: preset?.iconURL || "" })
-              }}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+              }}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
               <SelectItem value="auto">{copy.autoProvider}</SelectItem>
               {providerPresets.map((provider) => (
                 <SelectItem key={provider.id} value={String(provider.id)}>{provider.name}</SelectItem>
@@ -545,7 +545,7 @@ function ModelDialog({
             />
           </FieldLabel>
           <FieldLabel label={copy.quotaType}>
-            <Select value={String((String(draft.quota_type ?? 0)) || "__shadcn_empty__")} onValueChange={(value) => setDraft({ ...draft, quota_type: Number((value === "__shadcn_empty__" ? "" : value)) || 0 })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+            <Select value={String((String(draft.quota_type ?? 0)) || "__shadcn_empty__")} onValueChange={(value) => setDraft({ ...draft, quota_type: Number((value === "__shadcn_empty__" ? "" : value)) || 0 })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
               <SelectItem value="0">{copy.quotaToken}</SelectItem>
               <SelectItem value="1">{copy.quotaPerCall}</SelectItem>
               <SelectItem value="100">{copy.quotaVideo}</SelectItem>
@@ -1063,7 +1063,7 @@ function TierEditor({
         <div className="space-y-2">
           {normalized.map((tier, index) => (
             <div key={`${tier.condition || "current"}-${tier.min_tokens}-${index}`} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(150px,1.3fr)_minmax(120px,1fr)_minmax(120px,1fr)_auto]">
-              <Select value={String((tier.condition || "") || "__shadcn_empty__")} onValueChange={(value) => updateTier(index, { condition: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+              <Select value={String((tier.condition || "") || "__shadcn_empty__")} onValueChange={(value) => updateTier(index, { condition: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                 {tierConditionOptions(copy).map((option) => (
                   <SelectItem key={option.value || "current"} value={String(option.value)}>{option.label}</SelectItem>
                 ))}

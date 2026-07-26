@@ -142,18 +142,18 @@ export default function ModelCatalog() {
                 placeholder={copy.searchPlaceholder}
               />
             </div>
-            <Select value={String((sortOrder) || "__shadcn_empty__")} onValueChange={(value) => setSortOrder((value === "__shadcn_empty__" ? "" : value) as SortOrder)}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+            <Select value={String((sortOrder) || "__shadcn_empty__")} onValueChange={(value) => setSortOrder((value === "__shadcn_empty__" ? "" : value) as SortOrder)}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
               {sortOptions(copy).map((option) => (
                 <SelectItem key={option.value} value={String(option.value)}>{option.label}</SelectItem>
               ))}
             </SelectContent></Select>
-            <Select value={String((providerFilter) || "__shadcn_empty__")} onValueChange={(value) => setProviderFilter((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+            <Select value={String((providerFilter) || "__shadcn_empty__")} onValueChange={(value) => setProviderFilter((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
               <SelectItem value="__shadcn_empty__">{copy.allProviders}</SelectItem>
               {providerOptions.map((option) => (
                 <SelectItem key={option.value} value={String(option.value)}>{option.label}</SelectItem>
               ))}
             </SelectContent></Select>
-            <Select value={String((channelFilter) || "__shadcn_empty__")} onValueChange={(value) => setChannelFilter((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+            <Select value={String((channelFilter) || "__shadcn_empty__")} onValueChange={(value) => setChannelFilter((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
               <SelectItem value="__shadcn_empty__">{copy.allChannels}</SelectItem>
               {channelOptions.map((option) => (
                 <SelectItem key={option.value} value={String(option.value)}>{option.label}</SelectItem>

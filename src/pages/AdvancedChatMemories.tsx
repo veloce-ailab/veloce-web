@@ -313,14 +313,14 @@ export default function AdvancedChatMemories() {
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1 text-sm">
                 <span className="font-medium">{copy.scope}</span>
-                <Select value={String((draft.scope) || "__shadcn_empty__")} onValueChange={(value) => setDraft((current) => ({ ...current, scope: (value === "__shadcn_empty__" ? "" : value) as "global" | "agent" }))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((draft.scope) || "__shadcn_empty__")} onValueChange={(value) => setDraft((current) => ({ ...current, scope: (value === "__shadcn_empty__" ? "" : value) as "global" | "agent" }))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="global">{copy.global}</SelectItem>
                   <SelectItem value="agent">{copy.agent}</SelectItem>
                 </SelectContent></Select>
               </label>
               <label className="space-y-1 text-sm">
                 <span className="font-medium">{copy.agent}</span>
-                <Select value={String((draft.agent_id) || "__shadcn_empty__")} disabled={draft.scope !== "agent"} onValueChange={(value) => setDraft((current) => ({ ...current, agent_id: (value === "__shadcn_empty__" ? "" : value) }))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((draft.agent_id) || "__shadcn_empty__")} disabled={draft.scope !== "agent"} onValueChange={(value) => setDraft((current) => ({ ...current, agent_id: (value === "__shadcn_empty__" ? "" : value) }))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="__shadcn_empty__">{copy.selectAgent}</SelectItem>
                   {(agentsQuery.data || []).map((agent) => (
                     <SelectItem key={agent.id} value={String(agent.id)}>{agent.name}</SelectItem>
@@ -329,7 +329,7 @@ export default function AdvancedChatMemories() {
               </label>
               <label className="space-y-1 text-sm">
                 <span className="font-medium">{copy.kind}</span>
-                <Select value={String((draft.kind) || "__shadcn_empty__")} onValueChange={(value) => setDraft((current) => ({ ...current, kind: (value === "__shadcn_empty__" ? "" : value) }))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((draft.kind) || "__shadcn_empty__")} onValueChange={(value) => setDraft((current) => ({ ...current, kind: (value === "__shadcn_empty__" ? "" : value) }))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   {memoryKinds.map((kind) => (
                     <SelectItem key={kind} value={String(kind)}>{kind}</SelectItem>
                   ))}

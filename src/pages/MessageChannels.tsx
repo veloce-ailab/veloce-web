@@ -384,7 +384,7 @@ export default function MessageChannels() {
                 <Select value={String((draft.provider) || "__shadcn_empty__")} onValueChange={(value) => {
                     const provider = (value === "__shadcn_empty__" ? "" : value) as Draft["provider"]
                     setDraft((current) => ({ ...current, provider, bot_token: providerUsesBotToken(provider) ? current.bot_token : "" }))
-                  }}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                  }}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   {providerOptions.map((provider) => <SelectItem key={provider.value} value={String(provider.value)}>{provider.label}</SelectItem>)}
                 </SelectContent></Select>
               </Field>
@@ -401,7 +401,7 @@ export default function MessageChannels() {
               {draft.provider === "qq" && (
                 <>
                   <Field label={copy.qqConnectionMode}>
-                    <Select value={String((qqConnectionMode) || "__shadcn_empty__")} onValueChange={(value) => updateProviderConfig("connection_mode", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                    <Select value={String((qqConnectionMode) || "__shadcn_empty__")} onValueChange={(value) => updateProviderConfig("connection_mode", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                       <SelectItem value="webhook">{copy.qqConnectionWebhook}</SelectItem>
                       <SelectItem value="websocket">{copy.qqConnectionWebSocket}</SelectItem>
                     </SelectContent></Select>
@@ -426,7 +426,7 @@ export default function MessageChannels() {
                     </div>
                   </Field>
                   <Field label={copy.qqMsgType}>
-                    <Select value={String((providerConfig.msg_type || "2") || "__shadcn_empty__")} onValueChange={(value) => updateProviderConfig("msg_type", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                    <Select value={String((providerConfig.msg_type || "2") || "__shadcn_empty__")} onValueChange={(value) => updateProviderConfig("msg_type", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                       <SelectItem value="0">{copy.qqMsgTypeText}</SelectItem>
                       <SelectItem value="2">{copy.qqMsgTypeMarkdown}</SelectItem>
                     </SelectContent></Select>
@@ -570,7 +570,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function SelectField({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: ReactNode }) {
   return (
     <Field label={label}>
-      <Select value={String((value) || "__shadcn_empty__")} onValueChange={(value) => onChange((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+      <Select value={String((value) || "__shadcn_empty__")} onValueChange={(value) => onChange((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
         {children}
       </SelectContent></Select>
     </Field>

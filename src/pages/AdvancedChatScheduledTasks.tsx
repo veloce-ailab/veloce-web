@@ -371,7 +371,7 @@ export default function AdvancedChatScheduledTasks() {
             <div className="grid gap-4 md:grid-cols-2">
               <Field label={copy.name}><Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>
               <Field label={copy.agent}>
-                <Select value={String((form.agent_id) || "__shadcn_empty__")} onValueChange={(value) => setForm({ ...form, agent_id: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((form.agent_id) || "__shadcn_empty__")} onValueChange={(value) => setForm({ ...form, agent_id: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="__shadcn_empty__">{copy.noAgent}</SelectItem>
                   {agents.map((agent) => <SelectItem key={agent.id} value={String(agent.id)}>{agent.name}</SelectItem>)}
                 </SelectContent></Select>
@@ -380,7 +380,7 @@ export default function AdvancedChatScheduledTasks() {
             <Field label={copy.description}><textarea className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></Field>
             <div className="grid gap-4 md:grid-cols-3">
               <Field label={copy.scheduleType}>
-                <Select value={String((form.schedule_type) || "__shadcn_empty__")} onValueChange={(value) => setForm({ ...form, schedule_type: (value === "__shadcn_empty__" ? "" : value) as TaskForm["schedule_type"] })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((form.schedule_type) || "__shadcn_empty__")} onValueChange={(value) => setForm({ ...form, schedule_type: (value === "__shadcn_empty__" ? "" : value) as TaskForm["schedule_type"] })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="manual">{copy.manual}</SelectItem>
                   <SelectItem value="once">{copy.once}</SelectItem>
                   <SelectItem value="interval">{copy.interval}</SelectItem>
@@ -392,14 +392,14 @@ export default function AdvancedChatScheduledTasks() {
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label={copy.sessionMode}>
-                <Select value={String((form.session_mode) || "__shadcn_empty__")} onValueChange={(value) => setForm({ ...form, session_mode: (value === "__shadcn_empty__" ? "" : value) as TaskForm["session_mode"] })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((form.session_mode) || "__shadcn_empty__")} onValueChange={(value) => setForm({ ...form, session_mode: (value === "__shadcn_empty__" ? "" : value) as TaskForm["session_mode"] })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="auto">{copy.autoSession}</SelectItem>
                   <SelectItem value="existing">{copy.existingSession}</SelectItem>
                 </SelectContent></Select>
               </Field>
               {form.session_mode === "existing" ? (
                 <Field label={copy.session}>
-                  <Select value={String((form.session_id) || "__shadcn_empty__")} onValueChange={(value) => setForm({ ...form, session_id: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                  <Select value={String((form.session_id) || "__shadcn_empty__")} onValueChange={(value) => setForm({ ...form, session_id: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                     <SelectItem value="__shadcn_empty__">{copy.selectSession}</SelectItem>
                     {sessions.map((session) => <SelectItem key={session.id} value={String(session.id)}>{session.title || session.id}</SelectItem>)}
                   </SelectContent></Select>
@@ -414,13 +414,13 @@ export default function AdvancedChatScheduledTasks() {
             <Field label={copy.message}><textarea className="min-h-32 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.message} onChange={(event) => setForm({ ...form, message: event.target.value })} /></Field>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label={copy.delivery}>
-                <Select value={String((form.delivery_id) || "__shadcn_empty__")} disabled={!settings.message_delivery_enabled} onValueChange={(value) => setForm({ ...form, delivery_id: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((form.delivery_id) || "__shadcn_empty__")} disabled={!settings.message_delivery_enabled} onValueChange={(value) => setForm({ ...form, delivery_id: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="__shadcn_empty__">{copy.noDelivery}</SelectItem>
                   {deliveries.filter((item) => item.enabled).map((delivery) => <SelectItem key={delivery.id} value={String(delivery.id)}>{delivery.name}</SelectItem>)}
                 </SelectContent></Select>
               </Field>
               <Field label={copy.channel}>
-                <Select value={String((form.user_channel_id || "") || "__shadcn_empty__")} onValueChange={(value) => setForm({ ...form, user_channel_id: Number((value === "__shadcn_empty__" ? "" : value)) || 0 })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((form.user_channel_id || "") || "__shadcn_empty__")} onValueChange={(value) => setForm({ ...form, user_channel_id: Number((value === "__shadcn_empty__" ? "" : value)) || 0 })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="__shadcn_empty__">{copy.selectChannel}</SelectItem>
                   {channelOptions.map((channel) => <SelectItem key={channel.id} value={String(channel.id)}>{channel.name}</SelectItem>)}
                 </SelectContent></Select>
@@ -428,14 +428,14 @@ export default function AdvancedChatScheduledTasks() {
             </div>
             <div className="grid gap-4 md:grid-cols-4">
               <Field label={copy.model}>
-                <Select value={String((form.model_name) || "__shadcn_empty__")} onValueChange={(value) => setForm({ ...form, model_name: (value === "__shadcn_empty__" ? "" : value), user_channel_id: 0 })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((form.model_name) || "__shadcn_empty__")} onValueChange={(value) => setForm({ ...form, model_name: (value === "__shadcn_empty__" ? "" : value), user_channel_id: 0 })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="__shadcn_empty__">{copy.selectModel}</SelectItem>
                   {modelOptions.map((model) => <SelectItem key={model} value={String(model)}>{model}</SelectItem>)}
                 </SelectContent></Select>
               </Field>
               <Field label={copy.temperature}><Input type="number" min={0} max={2} step={0.1} value={form.temperature ?? ""} onChange={(event) => setForm({ ...form, temperature: event.target.value === "" ? null : Number(event.target.value) })} /></Field>
               <Field label={copy.reasoningEffort}>
-                <Select value={String((form.reasoning_effort) || "__shadcn_empty__")} onValueChange={(value) => setForm({ ...form, reasoning_effort: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((form.reasoning_effort) || "__shadcn_empty__")} onValueChange={(value) => setForm({ ...form, reasoning_effort: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="__shadcn_empty__">{copy.reasoningDefault}</SelectItem>
                   <SelectItem value="minimal">{copy.reasoningMinimal}</SelectItem>
                   <SelectItem value="low">{copy.reasoningLow}</SelectItem>

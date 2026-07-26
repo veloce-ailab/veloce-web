@@ -462,7 +462,7 @@ function AgentDialog({
                   id: agentMemberID(chatAgent),
                   name: chatAgent?.name || agent.name || "",
                 })
-              }}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+              }}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
               <SelectItem value="__shadcn_empty__">{copy.noChatAgentSelected}</SelectItem>
               {chatAgents.map((item) => (
                 <SelectItem key={item.id} value={String(item.id)}>
@@ -476,7 +476,7 @@ function AgentDialog({
               <Input value={agent.name} onChange={(event) => updateAgent({ name: event.target.value })} />
             </Field>
             <Field label={copy.agentType}>
-              <Select value={String((agent.type) || "__shadcn_empty__")} onValueChange={(value) => updateAgent({ type: (value === "__shadcn_empty__" ? "" : value) as AgentGroupAgent["type"] })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+              <Select value={String((agent.type) || "__shadcn_empty__")} onValueChange={(value) => updateAgent({ type: (value === "__shadcn_empty__" ? "" : value) as AgentGroupAgent["type"] })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                 <SelectItem value="chief">chief</SelectItem>
                 <SelectItem value="worker">worker</SelectItem>
                 <SelectItem value="critic">critic</SelectItem>

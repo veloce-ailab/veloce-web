@@ -266,7 +266,7 @@ export default function AdvancedChatDeliveries() {
             <div className="grid gap-4 md:grid-cols-2">
               <Field label={copy.name}><Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>
               <Field label={copy.method}>
-                <Select value={String((form.method) || "__shadcn_empty__")} onValueChange={(value) => setForm({ ...form, method: (value === "__shadcn_empty__" ? "" : value) as DeliveryForm["method"] })}><SelectTrigger className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                <Select value={String((form.method) || "__shadcn_empty__")} onValueChange={(value) => setForm({ ...form, method: (value === "__shadcn_empty__" ? "" : value) as DeliveryForm["method"] })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                   <SelectItem value="webhook">{copy.webhook}</SelectItem>
                   <SelectItem value="email">{copy.email}</SelectItem>
                 </SelectContent></Select>
