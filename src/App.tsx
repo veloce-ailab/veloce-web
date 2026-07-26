@@ -448,6 +448,14 @@ function App() {
                   }
                 />
                 <Route
+                  path="admin/ops"
+                  element={
+                    <AdminRoute>
+                      <SystemManagement section="sysops" />
+                    </AdminRoute>
+                  }
+                />
+                <Route
                   path="admin/advanced-chat"
                   element={
                     <AdminRoute>

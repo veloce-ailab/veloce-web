@@ -104,6 +104,43 @@ interface ClusterStatus {
   nodes: ClusterNode[]
 }
 
+interface ScheduledJobSnapshot {
+  name: string
+  description: string
+  primary_only: boolean
+  enabled: boolean
+  running: boolean
+  interval_seconds: number
+  next_run_at?: string | null
+  last_run_at?: string | null
+  last_status: string
+  last_message: string
+  last_duration_ms: number
+}
+
+interface ScheduledJobsResponse {
+  jobs: ScheduledJobSnapshot[]
+  node: { name: string; primary: boolean }
+}
+
+interface ScheduledTaskRun {
+  id: number
+  task_name: string
+  status: string
+  trigger: string
+  node_name: string
+  message: string
+  duration_ms: number
+  started_at: string
+}
+
+interface ScheduledTaskRunPage {
+  items: ScheduledTaskRun[]
+  total: number
+  page: number
+  page_size: number
+}
+
 interface SubscriptionPlan {
   id: number
   name: string
@@ -384,6 +421,7 @@ type SystemTab =
   | "content"
   | "topNavigation"
   | "navigation"
+  | "scheduledTasks"
   | "statusMonitor"
   | "reliability"
   | "logCleanup"
@@ -398,14 +436,15 @@ type SystemTab =
   | "subscriptionPlans"
   | "redeemCodes"
 
-type SystemSection = "general" | "theme" | "auth" | "content" | "operations" | "advancedChat" | "subscriptions" | "redeemCodes"
+type SystemSection = "general" | "theme" | "auth" | "content" | "operations" | "sysops" | "advancedChat" | "subscriptions" | "redeemCodes"
 
 const systemSectionTabs: Record<SystemSection, SystemTab[]> = {
   general: ["basic", "billing", "checkIn", "security", "redis"],
   theme: ["theme", "themeSettings"],
   auth: ["auth", "email"],
   content: ["content", "topNavigation", "navigation"],
-  operations: ["statusMonitor", "reliability", "logCleanup", "nodes", "configuration", "updates", "payment", "groups", "metaModels", "subscriptionPlans", "redeemCodes"],
+  operations: ["payment", "groups", "metaModels", "subscriptionPlans", "redeemCodes"],
+  sysops: ["scheduledTasks", "nodes", "statusMonitor", "reliability", "logCleanup", "configuration", "updates"],
   advancedChat: ["advancedChatAssistant", "advancedChatAttachments", "advancedChatMCP"],
   subscriptions: ["subscriptionPlans"],
   redeemCodes: ["redeemCodes"],
@@ -663,6 +702,8 @@ export default function SystemManagement({ section = "general", initialTab }: { 
   const [isAnnouncementDialogOpen, setIsAnnouncementDialogOpen] = useState(false)
   const [selectedConfigurationSections, setSelectedConfigurationSections] = useState<ConfigurationSection[]>(configurationSections.map((section) => section.id))
   const [configurationImportFile, setConfigurationImportFile] = useState<File | null>(null)
+  const [taskRunFilter, setTaskRunFilter] = useState("")
+  const [taskRunPage, setTaskRunPage] = useState(1)
   const { success, error } = useToast()
 
   const { data: settings, isSuccess: hasLoadedSettings } = useQuery<SystemSettings>({
@@ -730,6 +771,34 @@ export default function SystemManagement({ section = "general", initialTab }: { 
     queryKey: ["cluster-nodes"],
     queryFn: async () => (await api.get("/nodes")).data,
     refetchInterval: 15000,
+  })
+  const { data: scheduledJobs } = useQuery<ScheduledJobsResponse>({
+    queryKey: ["scheduled-jobs"],
+    queryFn: async () => (await api.get("/scheduled-jobs")).data,
+    enabled: activeTab === "scheduledTasks",
+    refetchInterval: activeTab === "scheduledTasks" ? 10000 : false,
+  })
+  const { data: scheduledTaskRuns } = useQuery<ScheduledTaskRunPage>({
+    queryKey: ["scheduled-task-runs", taskRunFilter, taskRunPage],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(taskRunPage), page_size: "20" })
+      if (taskRunFilter) {
+        params.set("task", taskRunFilter)
+      }
+      return (await api.get(`/scheduled-jobs/runs?${params.toString()}`)).data
+    },
+    enabled: activeTab === "scheduledTasks",
+    refetchInterval: activeTab === "scheduledTasks" ? 15000 : false,
+  })
+
+  const runScheduledJob = useMutation({
+    mutationFn: async (name: string) => api.post(`/scheduled-jobs/${encodeURIComponent(name)}/run`, {}),
+    onSuccess: () => {
+      success(copy.taskRunQueued)
+      queryClient.invalidateQueries({ queryKey: ["scheduled-jobs"] })
+      queryClient.invalidateQueries({ queryKey: ["scheduled-task-runs"] })
+    },
+    onError: (err) => error(apiErrorMessage(err, copy.taskRunFailed)),
   })
 
   const promoteNode = useMutation({
@@ -1590,6 +1659,154 @@ export default function SystemManagement({ section = "general", initialTab }: { 
         </SettingsPanel>
       )}
 
+      {activeTab === "scheduledTasks" && (
+        <SettingsPanel title={copy.scheduledTasks}>
+          <div className="space-y-5">
+            <SectionTitle title={copy.scheduledTasksTitle} description={copy.scheduledTasksDescription} />
+            {scheduledJobs?.node && !scheduledJobs.node.primary && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+                {copy.scheduledTasksReplicaHint}
+              </div>
+            )}
+            <div className="overflow-x-auto rounded-md border">
+              <div className="min-w-[1080px]">
+                <div className="grid grid-cols-[1.6fr_90px_110px_1.1fr_1.4fr_1.1fr_110px] border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
+                  <div>{copy.taskName}</div>
+                  <div>{copy.taskInterval}</div>
+                  <div>{copy.status}</div>
+                  <div>{copy.taskLastRun}</div>
+                  <div>{copy.taskLastResult}</div>
+                  <div>{copy.taskNextRun}</div>
+                  <div className="text-right">{t("common.actions")}</div>
+                </div>
+                {(scheduledJobs?.jobs || []).length === 0 ? (
+                  <div className="px-3 py-8 text-center text-sm text-muted-foreground">{copy.taskListEmpty}</div>
+                ) : (
+                  (scheduledJobs?.jobs || []).map((job) => (
+                    <div key={job.name} className="grid grid-cols-[1.6fr_90px_110px_1.1fr_1.4fr_1.1fr_110px] items-center border-b px-3 py-3 text-sm last:border-b-0">
+                      <div className="min-w-0 pr-2">
+                        <div className="font-medium">{scheduledJobLabel(copy, job)}</div>
+                        <div className="truncate text-xs text-muted-foreground" title={job.description}>
+                          {job.name}
+                          {job.primary_only && <span className="ml-1">· {copy.taskPrimaryOnly}</span>}
+                        </div>
+                      </div>
+                      <div>{formatSeconds(job.interval_seconds)}</div>
+                      <div>
+                        {job.running ? (
+                          <span className="text-sky-600 dark:text-sky-400">{copy.taskRunning}</span>
+                        ) : job.enabled ? (
+                          <span className="text-emerald-600 dark:text-emerald-400">{copy.taskEnabled}</span>
+                        ) : (
+                          <span className="text-muted-foreground">{copy.taskDisabled}</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {job.last_run_at ? formatNodeTimestamp(job.last_run_at) : copy.taskNever}
+                      </div>
+                      <div className="min-w-0 pr-2 text-xs">
+                        {job.last_status ? (
+                          <>
+                            <span className={job.last_status === "success" ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}>
+                              {job.last_status === "success" ? copy.taskStatusSuccess : copy.taskStatusFailed}
+                            </span>
+                            {job.last_duration_ms > 0 && <span className="ml-1 text-muted-foreground">{formatLatency(job.last_duration_ms)}</span>}
+                            {job.last_message && (
+                              <div className="truncate text-muted-foreground" title={job.last_message}>{job.last_message}</div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {job.next_run_at ? formatNodeTimestamp(job.next_run_at) : "-"}
+                      </div>
+                      <div className="flex justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={job.running || runScheduledJob.isPending || (job.primary_only && scheduledJobs?.node && !scheduledJobs.node.primary)}
+                          onClick={() => runScheduledJob.mutate(job.name)}
+                        >
+                          {copy.taskRunNow}
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <SectionTitle title={copy.taskRunHistory} description={copy.taskRunHistoryDescription} />
+            <div className="flex flex-wrap items-center gap-3">
+              <Select
+                value={taskRunFilter || "all"}
+                onValueChange={(value) => {
+                  setTaskRunFilter(value === "all" ? "" : value)
+                  setTaskRunPage(1)
+                }}
+              >
+                <SelectTrigger className="h-9 w-[240px] rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{copy.taskAllTasks}</SelectItem>
+                  {(scheduledJobs?.jobs || []).map((job) => (
+                    <SelectItem key={job.name} value={job.name}>{scheduledJobLabel(copy, job)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground">
+                {copy.taskRunTotal.replace("{count}", String(scheduledTaskRuns?.total ?? 0))}
+              </span>
+            </div>
+            <div className="overflow-x-auto rounded-md border">
+              <div className="min-w-[960px]">
+                <div className="grid grid-cols-[1.1fr_1.3fr_90px_100px_90px_110px_1.6fr] border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
+                  <div>{copy.taskRunTime}</div>
+                  <div>{copy.taskName}</div>
+                  <div>{copy.status}</div>
+                  <div>{copy.taskTrigger}</div>
+                  <div>{copy.taskDuration}</div>
+                  <div>{copy.taskNode}</div>
+                  <div>{copy.taskMessage}</div>
+                </div>
+                {(scheduledTaskRuns?.items || []).length === 0 ? (
+                  <div className="px-3 py-8 text-center text-sm text-muted-foreground">{copy.taskNoRuns}</div>
+                ) : (
+                  (scheduledTaskRuns?.items || []).map((run) => (
+                    <div key={run.id} className="grid grid-cols-[1.1fr_1.3fr_90px_100px_90px_110px_1.6fr] items-center border-b px-3 py-2.5 text-xs last:border-b-0">
+                      <div className="text-muted-foreground">{formatNodeTimestamp(run.started_at)}</div>
+                      <div>{scheduledJobRunLabel(copy, run.task_name, scheduledJobs?.jobs)}</div>
+                      <div className={run.status === "success" ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}>
+                        {run.status === "success" ? copy.taskStatusSuccess : copy.taskStatusFailed}
+                      </div>
+                      <div>{run.trigger === "manual" ? copy.taskTriggerManual : copy.taskTriggerSchedule}</div>
+                      <div className="text-muted-foreground">{formatLatency(run.duration_ms)}</div>
+                      <div className="truncate text-muted-foreground" title={run.node_name}>{run.node_name || "-"}</div>
+                      <div className="truncate" title={run.message}>{run.message || "-"}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="outline" size="sm" disabled={taskRunPage <= 1} onClick={() => setTaskRunPage((page) => Math.max(1, page - 1))}>
+                {copy.taskPrevPage}
+              </Button>
+              <span className="text-xs text-muted-foreground">{taskRunPage}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={(scheduledTaskRuns?.items || []).length < 20}
+                onClick={() => setTaskRunPage((page) => page + 1)}
+              >
+                {copy.taskNextPage}
+              </Button>
+            </div>
+          </div>
+        </SettingsPanel>
+      )}
+
       {activeTab === "statusMonitor" && (
         <SettingsPanel title={copy.statusMonitor}>
           <div className="space-y-5">
@@ -2337,6 +2554,7 @@ function systemTabs(copy: SystemCopy): Array<{ id: SystemTab; label: string; ico
     { id: "content", label: copy.content, icon: FileText },
     { id: "topNavigation", label: copy.topNavigation, icon: ToggleLeft },
     { id: "navigation", label: copy.navigation, icon: ToggleLeft },
+    { id: "scheduledTasks", label: copy.scheduledTasks, icon: CalendarCheck },
     { id: "statusMonitor", label: copy.statusMonitor, icon: Activity },
     { id: "reliability", label: copy.reliability, icon: RefreshCw },
     { id: "logCleanup", label: copy.logCleanup, icon: Trash2 },
@@ -3821,6 +4039,18 @@ function formatLatency(value: number) {
   return `${value}ms`
 }
 
+function scheduledJobLabel(copy: SystemCopy, job: Pick<ScheduledJobSnapshot, "name" | "description">) {
+  return (copy.taskLabels as Record<string, string>)[job.name] || job.description || job.name
+}
+
+function scheduledJobRunLabel(copy: SystemCopy, taskName: string, jobs?: ScheduledJobSnapshot[]) {
+  const job = (jobs || []).find((item) => item.name === taskName)
+  if (job) {
+    return scheduledJobLabel(copy, job)
+  }
+  return (copy.taskLabels as Record<string, string>)[taskName] || taskName
+}
+
 function formatSeconds(value: number) {
   if (!value) {
     return "-"
@@ -4276,6 +4506,51 @@ const zhCopy = {
   navigation: "侧边栏模块",
   statusMonitor: "状态监测",
   reliability: "可靠性",
+  scheduledTasks: "定时任务",
+  scheduledTasksTitle: "定时任务统一调度",
+  scheduledTasksDescription: "所有后台任务由统一调度器管理，集群级任务仅在主节点执行；可手动触发并查看执行历史。",
+  scheduledTasksReplicaHint: "当前节点是从节点，集群级任务由主节点执行，手动触发请在主节点操作。",
+  taskName: "任务",
+  taskInterval: "周期",
+  taskEnabled: "已启用",
+  taskDisabled: "已停用",
+  taskRunning: "执行中",
+  taskPrimaryOnly: "仅主节点",
+  taskLastRun: "上次执行",
+  taskLastResult: "上次结果",
+  taskNextRun: "下次执行",
+  taskNever: "从未执行",
+  taskListEmpty: "暂无注册的定时任务",
+  taskRunNow: "立即执行",
+  taskRunQueued: "已触发执行",
+  taskRunFailed: "触发失败",
+  taskStatusSuccess: "成功",
+  taskStatusFailed: "失败",
+  taskRunHistory: "执行日志",
+  taskRunHistoryDescription: "记录每次实际执行（空扫描不记录），保留期限与日志清理设置一致。",
+  taskAllTasks: "全部任务",
+  taskNoRuns: "暂无执行记录",
+  taskRunTotal: "共 {count} 条记录",
+  taskRunTime: "时间",
+  taskTrigger: "触发方式",
+  taskTriggerSchedule: "计划",
+  taskTriggerManual: "手动",
+  taskDuration: "耗时",
+  taskNode: "节点",
+  taskMessage: "消息",
+  taskPrevPage: "上一页",
+  taskNextPage: "下一页",
+  taskLabels: {
+    price_sync: "价格同步",
+    status_monitor: "状态监测",
+    reliability: "可靠性探测",
+    log_cleanup: "日志清理",
+    auto_update: "自动更新",
+    node_heartbeat: "节点心跳",
+    advanced_chat_scheduled_tasks: "AI 计划任务调度",
+    personal_company_scheduler: "Studio 工作调度",
+    plugin_credential_refresh: "插件凭证刷新",
+  },
   nodes: "多节点",
   nodesTitle: "主从节点",
   nodesDescription: "多个实例共用同一数据库时，只有主节点执行定时任务（价格同步、状态监控、可靠性探测、日志清理、定时任务调度），从节点只处理请求。",
@@ -4769,6 +5044,51 @@ const enCopy: SystemCopy = {
   navigation: "Sidebar Modules",
   statusMonitor: "Status Monitor",
   reliability: "Reliability",
+  scheduledTasks: "Scheduled Tasks",
+  scheduledTasksTitle: "Unified task scheduling",
+  scheduledTasksDescription: "All background jobs are managed by the unified scheduler; cluster-level jobs run only on the primary node. Trigger jobs manually and inspect run history here.",
+  scheduledTasksReplicaHint: "This node is a replica. Cluster-level jobs run on the primary node; trigger them there.",
+  taskName: "Task",
+  taskInterval: "Interval",
+  taskEnabled: "Enabled",
+  taskDisabled: "Disabled",
+  taskRunning: "Running",
+  taskPrimaryOnly: "primary only",
+  taskLastRun: "Last run",
+  taskLastResult: "Last result",
+  taskNextRun: "Next run",
+  taskNever: "Never",
+  taskListEmpty: "No scheduled jobs registered",
+  taskRunNow: "Run now",
+  taskRunQueued: "Run queued",
+  taskRunFailed: "Failed to trigger",
+  taskStatusSuccess: "Success",
+  taskStatusFailed: "Failed",
+  taskRunHistory: "Run history",
+  taskRunHistoryDescription: "Each actual execution is recorded (idle scans are not); retention follows the log cleanup settings.",
+  taskAllTasks: "All tasks",
+  taskNoRuns: "No runs recorded yet",
+  taskRunTotal: "{count} records",
+  taskRunTime: "Time",
+  taskTrigger: "Trigger",
+  taskTriggerSchedule: "Schedule",
+  taskTriggerManual: "Manual",
+  taskDuration: "Duration",
+  taskNode: "Node",
+  taskMessage: "Message",
+  taskPrevPage: "Previous",
+  taskNextPage: "Next",
+  taskLabels: {
+    price_sync: "Price sync",
+    status_monitor: "Status monitor",
+    reliability: "Reliability probe",
+    log_cleanup: "Log cleanup",
+    auto_update: "Auto update",
+    node_heartbeat: "Node heartbeat",
+    advanced_chat_scheduled_tasks: "AI scheduled tasks",
+    personal_company_scheduler: "Studio scheduler",
+    plugin_credential_refresh: "Plugin credential refresh",
+  },
   nodes: "Nodes",
   nodesTitle: "Primary and replicas",
   nodesDescription: "When several instances share one database, only the primary runs scheduled work (price sync, status monitoring, reliability probing, log cleanup, task dispatch). Replicas only serve requests.",

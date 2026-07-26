@@ -38,6 +38,7 @@ const systemSubItems: SystemSubItem[] = [
   { path: "/dashboard/admin/auth", labelKey: "nav.systemAuth", colorClass: "bg-emerald-500" },
   { path: "/dashboard/admin/content", labelKey: "nav.systemContent", colorClass: "bg-cyan-500" },
   { path: "/dashboard/admin/operations", labelKey: "nav.systemOperations", colorClass: "bg-amber-500" },
+  { path: "/dashboard/admin/ops", labelKey: "nav.systemOps", colorClass: "bg-orange-500" },
   { path: "/dashboard/admin/advanced-chat", labelKey: "nav.systemAdvancedChat", colorClass: "bg-violet-500" },
   { path: "/dashboard/admin/sandboxes", labelKey: "nav.cloudSandboxes", colorClass: "bg-sky-500" },
 ]
