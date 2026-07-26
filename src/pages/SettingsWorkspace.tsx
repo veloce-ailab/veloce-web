@@ -1,15 +1,12 @@
 import { useQuery } from "@tanstack/react-query"
-import { Bot, CreditCard, LogOut, Menu, MessageSquare, Shield, UserCircle } from "lucide-react"
+import { Bot, CreditCard, LogOut, MessageSquare, Shield, UserCircle } from "lucide-react"
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom"
 import { useEffect, useState } from "react"
 import Settings, { type SettingsSection } from "./Settings"
 import Wallet from "./Wallet"
-import { ThemeSwitcher } from "@/components/ThemeSwitcher"
-import { LanguageSwitcher } from "@/components/LanguageSwitcher"
-import { AnnouncementButton } from "@/components/AnnouncementButton"
+import { AppHeader } from "@/components/layout/Layout"
 import { PageTransition } from "@/components/layout/PageTransition"
-import { Button } from "@/components/ui/button"
-import api, { apiURL, isDesktopTarget } from "@/lib/api"
+import api, { isDesktopTarget } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
 import type { PublicSettings } from "@/lib/public-settings"
 import { withPublicSettingsDefaults } from "@/lib/public-settings"
@@ -59,32 +56,14 @@ export default function SettingsWorkspace() {
 
   return (
     <div className={cn("flex flex-col overflow-hidden", isDesktop ? "desktop-acrylic-window h-full min-h-0" : "h-screen bg-background")}>
-      {!isDesktop && <header className="z-30 flex h-16 shrink-0 items-center justify-between border-b bg-background px-4 sm:px-6">
-        <div className="flex min-w-0 items-center gap-3">
-          <Button
-            className="lg:hidden"
-            variant="outline"
-            size="icon"
-            aria-label={isSidebarOpen ? copy.closeMenu : copy.openMenu}
-            aria-expanded={isSidebarOpen}
-            onClick={() => setIsSidebarOpen((open) => !open)}
-          >
-            <Menu size={18} />
-          </Button>
-          <Link to="/" className="flex min-w-0 items-center gap-2">
-            {publicSettings.icon_url && <img src={publicSettings.icon_url} alt="" className="h-7 w-7 shrink-0 rounded object-cover" />}
-            <span className="truncate text-sm font-semibold">{publicSettings.site_name}</span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2">
-          <ThemeSwitcher />
-          <LanguageSwitcher compact />
-          <AnnouncementButton />
-          <button type="button" className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border bg-muted text-sm font-semibold" title={user?.username || user?.email || copy.account}>
-            {user?.avatar_url ? <img src={apiURL(user.avatar_url)} alt="" className="h-full w-full object-cover" /> : avatarInitials(user?.username || user?.email || "") || <UserCircle size={20} />}
-          </button>
-        </div>
-      </header>}
+      {!isDesktop && (
+        <AppHeader
+          publicSettings={publicSettings}
+          user={user}
+          isSidebarOpen={isSidebarOpen}
+          onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
+        />
+      )}
 
       <div className="flex min-h-0 flex-1">
         <SettingsSidebar pathname={location.pathname} copy={copy} onLogout={logout} />
@@ -165,11 +144,6 @@ function SettingsSidebar({ pathname, copy, onLogout, className, onNavigate }: {
       </div>
     </aside>
   )
-}
-
-function avatarInitials(value: string) {
-  const trimmed = value.trim()
-  return trimmed ? trimmed.slice(0, 2).toUpperCase() : ""
 }
 
 function settingsWorkspaceCopy(language: string) {

@@ -2,7 +2,7 @@ import { Sidebar } from "./Sidebar"
 import { PageTransition } from "./PageTransition"
 import { Menu, SlidersHorizontal, UserCircle } from "lucide-react"
 import { Link, Outlet, useLocation } from "react-router-dom"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { ThemeSwitcher } from "@/components/ThemeSwitcher"
@@ -50,7 +50,6 @@ export function Layout() {
   const enterpriseMode = String(publicSettings.system_mode).toLowerCase() === "enterprise"
   const { data: enterprisePortal } = useQuery<EnterprisePortalResponse>({ queryKey: ["enterprise-portal"], queryFn: async () => (await api.get("/user/enterprise/portal")).data, retry: false, enabled: enterpriseMode })
   const { data: enterpriseOrganization } = useQuery<EnterpriseOrganizationResponse>({ queryKey: ["enterprise-organization"], queryFn: async () => (await api.get("/user/enterprise/organization")).data, retry: false, enabled: enterpriseMode })
-  const topNavItems = parseTopNavItems(publicSettings.top_nav_items)
   const currentPageKey = pageKeyFromPathname(location.pathname)
   const layoutEditorLabel = language === "zh" ? (isLayoutEditing ? "退出编辑" : "可视化编辑") : isLayoutEditing ? "Exit editing" : "Visual editing"
   const enterpriseDashboard = enterpriseMode && Boolean(enterprisePortal?.portal)
@@ -65,46 +64,24 @@ export function Layout() {
       saveEndpoint={enterpriseDashboard ? "/user/enterprise/portal/layout" : "/settings"}
     >
     <div className="flex h-screen flex-col overflow-hidden bg-background">
-      <header className="z-30 flex h-16 shrink-0 items-center justify-between border-b bg-background/95 px-4 backdrop-blur sm:px-6">
-        <div className="flex min-w-0 items-center gap-3">
+      <AppHeader
+        publicSettings={publicSettings}
+        user={user}
+        isSidebarOpen={isSidebarOpen}
+        onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
+        extra={canEditLayout && currentPageKey === "/dashboard" && (
           <Button
-            className="lg:hidden"
-            variant="outline"
+            variant={isLayoutEditing ? "default" : "outline"}
             size="icon"
-            onClick={() => setIsSidebarOpen((open) => !open)}
-            aria-label={isSidebarOpen ? "Close menu" : "Open menu"}
-            aria-expanded={isSidebarOpen}
+            title={layoutEditorLabel}
+            aria-label={layoutEditorLabel}
+            disabled={!settings}
+            onClick={() => setIsLayoutEditing((editing) => !editing)}
           >
-            <Menu size={18} />
+            <SlidersHorizontal size={18} />
           </Button>
-          <Brand settings={publicSettings} />
-        </div>
-        <div className="flex min-w-0 items-center gap-3">
-          {publicSettings.top_nav_enabled && topNavItems.length > 0 && (
-            <div className="hidden min-w-0 items-center gap-4 text-sm text-muted-foreground lg:flex">
-              {topNavItems.map((item) => (
-                <NavLink key={`${item.label}-${item.href}`} label={item.label} href={item.href} external={item.external} />
-              ))}
-            </div>
-          )}
-          {canEditLayout && currentPageKey === "/dashboard" && (
-            <Button
-              variant={isLayoutEditing ? "default" : "outline"}
-              size="icon"
-              title={layoutEditorLabel}
-              aria-label={layoutEditorLabel}
-              disabled={!settings}
-              onClick={() => setIsLayoutEditing((editing) => !editing)}
-            >
-              <SlidersHorizontal size={18} />
-            </Button>
-          )}
-          <ThemeSwitcher />
-          <LanguageSwitcher compact />
-          <AnnouncementButton />
-          <UserAvatar user={user} />
-        </div>
-      </header>
+        )}
+      />
       {canEditLayout && currentPageKey === "/dashboard" && <PageLayoutEditBar />}
 
       <div className="flex min-h-0 flex-1">
@@ -157,6 +134,65 @@ export function Layout() {
       </div>
     </div>
     </PageLayoutEditorProvider>
+  )
+}
+
+export interface AppHeaderUser {
+  username?: string
+  email?: string
+  avatar_url?: string
+}
+
+// AppHeader is the shared top bar used by the console layout and the settings
+// workspace so both surfaces stay visually consistent.
+export function AppHeader({
+  publicSettings,
+  user,
+  isSidebarOpen,
+  onToggleSidebar,
+  extra,
+}: {
+  publicSettings: PublicSettings
+  user?: AppHeaderUser
+  isSidebarOpen: boolean
+  onToggleSidebar: () => void
+  extra?: ReactNode
+}) {
+  const { language } = useI18n()
+  const topNavItems = parseTopNavItems(publicSettings.top_nav_items)
+  const menuLabel = isSidebarOpen
+    ? language === "zh" ? "关闭菜单" : "Close menu"
+    : language === "zh" ? "打开菜单" : "Open menu"
+  return (
+    <header className="z-30 flex h-16 shrink-0 items-center justify-between border-b bg-background/95 px-4 backdrop-blur sm:px-6">
+      <div className="flex min-w-0 items-center gap-3">
+        <Button
+          className="lg:hidden"
+          variant="outline"
+          size="icon"
+          onClick={onToggleSidebar}
+          aria-label={menuLabel}
+          aria-expanded={isSidebarOpen}
+        >
+          <Menu size={18} />
+        </Button>
+        <Brand settings={publicSettings} />
+      </div>
+      <div className="flex min-w-0 items-center gap-3">
+        {publicSettings.top_nav_enabled && topNavItems.length > 0 && (
+          <div className="hidden min-w-0 items-center gap-4 text-sm text-muted-foreground lg:flex">
+            {topNavItems.map((item) => (
+              <NavLink key={`${item.label}-${item.href}`} label={item.label} href={item.href} external={item.external} />
+            ))}
+          </div>
+        )}
+        {extra}
+        <ThemeSwitcher />
+        <LanguageSwitcher compact />
+        <AnnouncementButton />
+        <UserAvatar user={user} />
+      </div>
+    </header>
   )
 }
 
