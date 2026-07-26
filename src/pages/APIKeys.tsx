@@ -2,7 +2,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Copy, Plus, RotateCcw, RotateCw, Save, Trash } from "lucide-react"
+import { ArrowDown, ArrowUp, Copy, Plus, RotateCcw, RotateCw, Save, Trash, X } from "lucide-react"
 import api, { apiURL } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
 import { Button } from "@/components/ui/button"
@@ -80,7 +80,7 @@ export default function APIKeys() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [newRawKey, setNewRawKey] = useState("")
   const [newName, setNewName] = useState("")
-  const [newChannelId, setNewChannelId] = useState(0)
+  const [newChannelIds, setNewChannelIds] = useState<number[]>([])
   const [newModels, setNewModels] = useState<string[]>([])
   const [newIPs, setNewIPs] = useState("")
   const [newQuotaLimit, setNewQuotaLimit] = useState("")
@@ -117,7 +117,7 @@ export default function APIKeys() {
       const payload: APIKeyPayload = {
         name: newName || "API key",
         allowed_models: newModels,
-        allowed_user_channels: personalMode ? [] : newChannelId ? [newChannelId] : [],
+        allowed_user_channels: personalMode ? [] : newChannelIds,
         allowed_ips: parseCSV(newIPs),
         quota_limit: personalMode ? "0" : parseQuotaLimit(newQuotaLimit),
       }
@@ -128,7 +128,7 @@ export default function APIKeys() {
       setNewRawKey(data.api_key)
       success(t("settings.keyCreated"))
       setNewName("")
-      setNewChannelId(0)
+      setNewChannelIds([])
       setNewModels([])
       setNewIPs("")
       setNewQuotaLimit("")
@@ -209,7 +209,7 @@ export default function APIKeys() {
     setIsCreateOpen(false)
     setNewRawKey("")
     setNewName("")
-    setNewChannelId(0)
+    setNewChannelIds([])
     setNewModels([])
     setNewIPs("")
     setNewQuotaLimit("")
@@ -277,10 +277,10 @@ export default function APIKeys() {
             {!personalMode && (
               <RestrictionPicker
                 catalog={catalog}
-                channelId={newChannelId}
+                channelIds={newChannelIds}
                 models={newModels}
-                onChannelIdChange={(channelId) => {
-                  setNewChannelId(channelId)
+                onChannelIdsChange={(channelIds) => {
+                  setNewChannelIds(channelIds)
                   setNewModels([])
                 }}
                 onModelsChange={setNewModels}
@@ -321,7 +321,7 @@ export default function APIKeys() {
               {newRawKey ? t("common.close") : t("common.cancel")}
             </Button>
             {!newRawKey && (
-              <Button className="gap-2" onClick={() => createAPIKey.mutate()} disabled={createAPIKey.isPending || (!personalMode && !newChannelId)}>
+              <Button className="gap-2" onClick={() => createAPIKey.mutate()} disabled={createAPIKey.isPending || (!personalMode && newChannelIds.length === 0)}>
                 <Plus size={16} />
                 {createAPIKey.isPending ? t("settings.creatingKey") : t("settings.createKey")}
               </Button>
@@ -361,7 +361,7 @@ function APIKeyRow({
   const allowedModels = stringArray(apiKey.allowed_models)
   const allowedIPs = stringArray(apiKey.allowed_ips)
   const [name, setName] = useState(apiKey.name)
-  const [channelId, setChannelId] = useState(allowedChannels[0] || 0)
+  const [channelIds, setChannelIds] = useState<number[]>(allowedChannels)
   const [models, setModels] = useState(allowedModels)
   const [ips, setIPs] = useState(allowedIPs.join(","))
   const [quotaLimit, setQuotaLimit] = useState(quotaInputValue(apiKey.quota_limit))
@@ -369,7 +369,7 @@ function APIKeyRow({
   const payload = (enabled = apiKey.enabled): APIKeyPayload => ({
     name,
     allowed_models: models,
-    allowed_user_channels: personalMode ? [] : channelId ? [channelId] : [],
+    allowed_user_channels: personalMode ? [] : channelIds,
     allowed_ips: parseCSV(ips),
     quota_limit: personalMode ? "0" : parseQuotaLimit(quotaLimit),
     enabled,
@@ -377,7 +377,7 @@ function APIKeyRow({
 
   const resetConfigState = () => {
     setName(apiKey.name)
-    setChannelId(numberArray(apiKey.allowed_user_channels)[0] || 0)
+    setChannelIds(numberArray(apiKey.allowed_user_channels))
     setModels(stringArray(apiKey.allowed_models))
     setIPs(stringArray(apiKey.allowed_ips).join(","))
     setQuotaLimit(quotaInputValue(apiKey.quota_limit))
@@ -435,7 +435,11 @@ function APIKeyRow({
 
       <div className="text-sm text-muted-foreground">
         {t("settings.scopeSummary", {
-          channels: personalMode ? t("settings.unrestricted") : channelName(catalog, allowedChannels[0] || 0) || "-",
+          channels: personalMode
+            ? t("settings.unrestricted")
+            : allowedChannels.length > 1
+              ? `${t("settings.autoChannelLabel")}: ${channelNames(catalog, allowedChannels).join(" → ")}`
+              : channelName(catalog, allowedChannels[0] || 0) || "-",
           models: allowedModels.length || t("settings.unrestricted"),
           ips: allowedIPs.length || t("settings.unrestricted"),
         })}
@@ -483,10 +487,10 @@ function APIKeyRow({
             {!personalMode && (
               <RestrictionPicker
                 catalog={catalog}
-                channelId={channelId}
+                channelIds={channelIds}
                 models={models}
-                onChannelIdChange={(nextChannelId) => {
-                  setChannelId(nextChannelId)
+                onChannelIdsChange={(nextChannelIds) => {
+                  setChannelIds(nextChannelIds)
                   setModels([])
                 }}
                 onModelsChange={setModels}
@@ -513,7 +517,7 @@ function APIKeyRow({
             <Button variant="outline" onClick={() => setIsConfigOpen(false)}>
               {t("common.cancel")}
             </Button>
-            <Button className="gap-2" onClick={saveConfig} disabled={!personalMode && !channelId}>
+            <Button className="gap-2" onClick={saveConfig} disabled={!personalMode && channelIds.length === 0}>
               <Save size={14} />
               {t("settings.save")}
             </Button>
@@ -543,27 +547,51 @@ function apiBaseURLForConfig() {
 
 function RestrictionPicker({
   catalog,
-  channelId,
+  channelIds,
   models,
-  onChannelIdChange,
+  onChannelIdsChange,
   onModelsChange,
 }: {
   catalog: UserChannelCatalog[]
-  channelId: number
+  channelIds: number[]
   models: string[]
-  onChannelIdChange: (value: number) => void
+  onChannelIdsChange: (value: number[]) => void
   onModelsChange: (value: string[]) => void
 }) {
   const { t } = useI18n()
-  const modelOptions = modelOptionsForChannel(catalog, channelId, models)
-  const selectedChannel = catalog.find((channel) => channel.id === channelId)
+  const [customMode, setCustomMode] = useState(channelIds.length > 1)
+  const isCustom = customMode || channelIds.length > 1
+  const modelOptions = modelOptionsForChannels(catalog, channelIds, models)
+  const selectedChannel = !isCustom ? catalog.find((channel) => channel.id === (channelIds[0] || 0)) : undefined
+  const remainingChannels = catalog.filter((channel) => !channelIds.includes(channel.id))
+
+  const selectValue = isCustom ? "__custom__" : String((channelIds[0] || "") || "__shadcn_empty__")
+  const handleSelect = (value: string) => {
+    if (value === "__custom__") {
+      setCustomMode(true)
+      return
+    }
+    setCustomMode(false)
+    const id = Number(value === "__shadcn_empty__" ? "" : value) || 0
+    onChannelIdsChange(id ? [id] : [])
+  }
+
+  const moveChannel = (index: number, delta: number) => {
+    const next = [...channelIds]
+    const swap = index + delta
+    if (swap < 0 || swap >= next.length) return
+    ;[next[index], next[swap]] = [next[swap], next[index]]
+    onChannelIdsChange(next)
+  }
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <div className="space-y-2">
         <div className="text-sm font-medium">{t("settings.userChannels")}</div>
-        <Select value={String((channelId || "") || "__shadcn_empty__")} onValueChange={(value) => onChannelIdChange(Number((value === "__shadcn_empty__" ? "" : value)) || 0)}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue>
-          {selectedChannel ? (
+        <Select value={selectValue} onValueChange={handleSelect}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue>
+          {isCustom ? (
+            t("settings.customAutoChannel")
+          ) : selectedChannel ? (
             <span className="flex items-center gap-2">
               <span className="truncate">{selectedChannel.name}</span>
               <span className="shrink-0 text-xs text-muted-foreground">×{formatMultiplier(selectedChannel.multiplier)}</span>
@@ -586,9 +614,72 @@ function RestrictionPicker({
               </span>
             </SelectItem>
           ))}
+          <SelectItem value="__custom__">
+            <span className="flex min-w-0 flex-col py-0.5 text-left">
+              <span className="truncate">{t("settings.customAutoChannel")}</span>
+              <span className="max-w-80 truncate text-xs text-muted-foreground">{t("settings.autoChannelHint")}</span>
+            </span>
+          </SelectItem>
         </SelectContent></Select>
-        {selectedChannel?.description && (
+        {!isCustom && selectedChannel?.description && (
           <div className="text-xs text-muted-foreground">{selectedChannel.description}</div>
+        )}
+        {isCustom && (
+          <div className="space-y-2 rounded-md border p-3">
+            <div className="text-xs text-muted-foreground">{t("settings.autoChannelHint")}</div>
+            {channelIds.length === 0 ? (
+              <div className="text-sm text-muted-foreground">{t("settings.autoChannelEmpty")}</div>
+            ) : (
+              <div className="space-y-1">
+                {channelIds.map((id, index) => {
+                  const channel = catalog.find((item) => item.id === id)
+                  return (
+                    <div key={id} className="flex items-center gap-2 rounded-md border px-2 py-1 text-sm">
+                      <span className="w-5 shrink-0 text-center font-mono text-xs text-muted-foreground">{index + 1}</span>
+                      <span className="min-w-0 flex-1 truncate">{channel?.name || `#${id}`}</span>
+                      {channel && (
+                        <span className="shrink-0 text-xs text-muted-foreground">×{formatMultiplier(channel.multiplier)}</span>
+                      )}
+                      <Button variant="ghost" size="icon" className="h-6 w-6" disabled={index === 0} onClick={() => moveChannel(index, -1)}>
+                        <ArrowUp size={12} />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" disabled={index === channelIds.length - 1} onClick={() => moveChannel(index, 1)}>
+                        <ArrowDown size={12} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-red-500 hover:text-red-600"
+                        onClick={() => onChannelIdsChange(channelIds.filter((item) => item !== id))}
+                      >
+                        <X size={12} />
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {remainingChannels.length > 0 && (
+              <Select value="__shadcn_empty__" onValueChange={(value) => {
+                const id = Number(value === "__shadcn_empty__" ? "" : value) || 0
+                if (id && !channelIds.includes(id)) {
+                  onChannelIdsChange([...channelIds, id])
+                }
+              }}><SelectTrigger className="h-9 w-full rounded-xl border border-border bg-background px-3 text-sm"><SelectValue>
+                {t("settings.addAutoChannel")}
+              </SelectValue></SelectTrigger><SelectContent>
+                <SelectItem value="__shadcn_empty__">{t("settings.addAutoChannel")}</SelectItem>
+                {remainingChannels.map((channel) => (
+                  <SelectItem key={channel.id} value={String(channel.id)}>
+                    <span className="flex items-center gap-2">
+                      <span className="truncate">{channel.name}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">×{formatMultiplier(channel.multiplier)}</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent></Select>
+            )}
+          </div>
         )}
       </div>
 
@@ -634,14 +725,16 @@ function FieldLabel({ label, children }: { label: string; children: React.ReactN
   )
 }
 
-function modelOptionsForChannel(catalog: UserChannelCatalog[], channelId: number, selectedModels: string[]) {
+function modelOptionsForChannels(catalog: UserChannelCatalog[], channelIds: number[], selectedModels: string[]) {
   const modelSet = new Set<string>(selectedModels)
-  const channel = catalog.find((item) => item.id === channelId)
-  if (!channel) {
-    return Array.from(modelSet).sort()
-  }
-  for (const modelName of channel.models) {
-    modelSet.add(modelName)
+  for (const channelId of channelIds) {
+    const channel = catalog.find((item) => item.id === channelId)
+    if (!channel) {
+      continue
+    }
+    for (const modelName of channel.models) {
+      modelSet.add(modelName)
+    }
   }
   return Array.from(modelSet).sort()
 }
@@ -652,6 +745,10 @@ function toggleString(items: string[], item: string) {
 
 function channelName(catalog: UserChannelCatalog[], id: number) {
   return catalog.find((channel) => channel.id === id)?.name || ""
+}
+
+function channelNames(catalog: UserChannelCatalog[], ids: number[]) {
+  return ids.map((id) => channelName(catalog, id) || `#${id}`)
 }
 
 function formatMultiplier(value: string | number) {
