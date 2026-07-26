@@ -147,6 +147,8 @@ export default function Models() {
   const [priceChannelID, setPriceChannelID] = useState(0)
   const [syncPreview, setSyncPreview] = useState<SyncPreview | null>(null)
   const [selectedModelNames, setSelectedModelNames] = useState<string[]>([])
+  // 当前预览的来源：channel=上级渠道（加价），community=社区站点（原价）
+  const [syncSource, setSyncSource] = useState<"channel" | "community">("channel")
   const [browserFallback, setBrowserFallback] = useState<BrowserSyncFallback | null>(null)
 
   const { data: models = [], isLoading } = useQuery<ModelConfig[]>({
@@ -209,6 +211,7 @@ export default function Models() {
       return res.data as SyncPreview
     },
     onSuccess: (preview) => {
+      setSyncSource("channel")
       setSyncPreview(preview)
       setSelectedModelNames(preview.models.map((item) => item.model_name))
     },
@@ -216,6 +219,23 @@ export default function Models() {
       console.error("Model price sync preview failed", err)
       error(syncErrorMessage(err, copy.syncPreviewFailed))
       openBrowserFallback(err)
+    },
+  })
+
+  // 社区来源：从内置的社区站点拉取参考价格（不经过渠道，按原价应用）
+  const communityPreviewSync = useMutation({
+    mutationFn: async () => {
+      const res = await api.post("/models/prices/sync/preview/community", {})
+      return res.data as SyncPreview
+    },
+    onSuccess: (preview) => {
+      setSyncSource("community")
+      setSyncPreview(preview)
+      setSelectedModelNames(preview.models.map((item) => item.model_name))
+    },
+    onError: (err) => {
+      console.error("Community price sync preview failed", err)
+      error(syncErrorMessage(err, copy.communityPreviewFailed))
     },
   })
 
@@ -245,10 +265,12 @@ export default function Models() {
         return []
       }
       const selectedModels = syncPreview.models.filter((item) => selectedModelNames.includes(item.model_name))
-      const res = await api.post("/models/prices/sync/apply", {
-        channel_id: syncPreview.channel_id,
-        models: selectedModels,
-      })
+      const res = syncSource === "community"
+        ? await api.post("/models/prices/sync/apply/community", { models: selectedModels })
+        : await api.post("/models/prices/sync/apply", {
+            channel_id: syncPreview.channel_id,
+            models: selectedModels,
+          })
       return Array.isArray(res.data?.results) ? res.data.results as SyncResult[] : []
     },
     onSuccess: (results) => {
@@ -340,9 +362,21 @@ export default function Models() {
                 ))}
               </SelectContent></Select>
             </FieldLabel>
-            <Button className="gap-2 self-end" disabled={!priceChannelID || previewPriceSync.isPending || browserPreviewSync.isPending} onClick={() => previewPriceSync.mutate()}>
+            <Button className="gap-2 self-end" disabled={!priceChannelID || previewPriceSync.isPending || browserPreviewSync.isPending || communityPreviewSync.isPending} onClick={() => previewPriceSync.mutate()}>
               <Download size={16} />
               {copy.fetchPrices}
+            </Button>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-muted/20 px-4 py-3">
+            <div className="text-sm text-muted-foreground">{copy.communityHint}</div>
+            <Button
+              variant="outline"
+              className="gap-2"
+              disabled={previewPriceSync.isPending || browserPreviewSync.isPending || communityPreviewSync.isPending}
+              onClick={() => communityPreviewSync.mutate()}
+            >
+              <Download size={16} />
+              {communityPreviewSync.isPending ? copy.communityFetching : copy.communityFetch}
             </Button>
           </div>
         </CardContent>
@@ -1404,6 +1438,10 @@ const zhCopy = {
   sourceChannel: "来源上级渠道",
   selectChannel: "选择上级渠道",
   fetchPrices: "拉取价格",
+  communityFetch: "从社区拉取",
+  communityFetching: "正在从社区拉取",
+  communityHint: "社区价格来源：veloce-community.flweb.cn，按社区参考价原价应用（不加价）",
+  communityPreviewFailed: "从社区获取价格失败",
   channelRequired: "请选择上级渠道",
   syncPreviewFailed: "获取价格失败",
   syncFailed: "同步价格失败",
@@ -1484,6 +1522,10 @@ const enCopy: typeof zhCopy = {
   sourceChannel: "Source upstream channel",
   selectChannel: "Select upstream channel",
   fetchPrices: "Fetch prices",
+  communityFetch: "Fetch from community",
+  communityFetching: "Fetching from community",
+  communityHint: "Community source: veloce-community.flweb.cn, applied at the community reference price (no markup)",
+  communityPreviewFailed: "Failed to fetch community prices",
   channelRequired: "Select an upstream channel",
   syncPreviewFailed: "Failed to fetch prices",
   syncFailed: "Failed to sync prices",
