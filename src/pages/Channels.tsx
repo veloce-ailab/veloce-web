@@ -1,3 +1,4 @@
+import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useEffect, useMemo, useState } from "react"
@@ -37,6 +38,14 @@ interface UserChannel {
   multiplier: string | number
   routing_algorithm: string
   enabled: boolean
+  allowed_groups?: Array<{ id: number; group_id: number; group?: Group }>
+  allowed_users?: Array<{ id: number; user_id: number; user?: AdminUserOption }>
+}
+
+interface AdminUserOption {
+  id: number
+  username: string
+  email: string
 }
 
 interface Group {
@@ -207,6 +216,20 @@ export default function Channels() {
     },
   })
 
+  const { data: adminUsers = [] } = useQuery<AdminUserOption[]>({
+    queryKey: ["admin-users-options"],
+    queryFn: async () => {
+      const res = await api.get("/users")
+      return Array.isArray(res.data)
+        ? res.data.map((item: { id?: number; username?: string; email?: string }) => ({
+            id: Number(item.id || 0),
+            username: String(item.username || ""),
+            email: String(item.email || ""),
+          })).filter((item: AdminUserOption) => item.id > 0)
+        : []
+    },
+  })
+
   const { data: pluginTypes = [] } = useQuery<ChannelTypeConfig[]>({
     queryKey: ["admin-plugin-upstream-types"],
     queryFn: async () => {
@@ -235,14 +258,17 @@ export default function Channels() {
   })
 
   const saveUserChannel = useMutation({
-    mutationFn: async (channel: Partial<UserChannel>) => {
+    mutationFn: async ({ channel, groupIDs, userIDs }: { channel: Partial<UserChannel>; groupIDs: number[]; userIDs: number[] }) => {
       const payload = userChannelPayload(channel)
-      if (channel.id) {
-        const res = await api.put(`/user-channels/${channel.id}`, payload)
-        return res.data
+      const saved = channel.id
+        ? (await api.put(`/user-channels/${channel.id}`, payload)).data
+        : (await api.post("/user-channels", payload)).data
+      const channelID = Number(saved?.id || channel.id || 0)
+      if (channelID > 0) {
+        await api.put(`/user-channels/${channelID}/allowed-groups`, { group_ids: groupIDs })
+        await api.put(`/user-channels/${channelID}/allowed-users`, { user_ids: userIDs })
       }
-      const res = await api.post("/user-channels", payload)
-      return res.data
+      return saved
     },
     onSuccess: () => {
       success(t("admin.saved"))
@@ -367,7 +393,16 @@ export default function Channels() {
               ) : (
                 userChannels.map((channel) => (
                   <TableRow key={channel.id}>
-                    <TableCell className="font-medium">{channel.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <div>{channel.name}</div>
+                      {((channel.allowed_groups?.length || 0) > 0 || (channel.allowed_users?.length || 0) > 0) && (
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          {copy.visibilityRestricted
+                            .replace("{groups}", String(channel.allowed_groups?.length || 0))
+                            .replace("{users}", String(channel.allowed_users?.length || 0))}
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell>{channel.description || "-"}</TableCell>
                     <TableCell>{channel.multiplier || 1}</TableCell>
                     <TableCell>{routingAlgorithmLabel(channel.routing_algorithm, copy)}</TableCell>
@@ -479,8 +514,10 @@ export default function Channels() {
       <PageInlineSlot slotKey="secondary" />
       <UserChannelDialog
         channel={editingUserChannel}
+        groups={groups}
+        users={adminUsers}
         onClose={() => setEditingUserChannel(null)}
-        onSave={(channel) => saveUserChannel.mutate(channel)}
+        onSave={(channel, groupIDs, userIDs) => saveUserChannel.mutate({ channel, groupIDs, userIDs })}
       />
       <UpstreamDialog
         channel={editingUpstream}
@@ -513,20 +550,37 @@ export default function Channels() {
 
 function UserChannelDialog({
   channel,
+  groups,
+  users,
   onClose,
   onSave,
 }: {
   channel: Partial<UserChannel> | null
+  groups: Group[]
+  users: AdminUserOption[]
   onClose: () => void
-  onSave: (channel: Partial<UserChannel>) => void
+  onSave: (channel: Partial<UserChannel>, groupIDs: number[], userIDs: number[]) => void
 }) {
   const { language, t } = useI18n()
   const copy = language === "zh" ? zhChannelCopy : enChannelCopy
   const [draft, setDraft] = useState<Partial<UserChannel>>(emptyUserChannel())
+  const [allowedGroupIDs, setAllowedGroupIDs] = useState<number[]>([])
+  const [allowedUserIDs, setAllowedUserIDs] = useState<number[]>([])
+  const [userFilter, setUserFilter] = useState("")
 
   useEffect(() => {
     setDraft(channel || emptyUserChannel())
+    setAllowedGroupIDs((channel?.allowed_groups || []).map((item) => item.group_id).filter(Boolean))
+    setAllowedUserIDs((channel?.allowed_users || []).map((item) => item.user_id).filter(Boolean))
+    setUserFilter("")
   }, [channel])
+
+  const toggleID = (list: number[], id: number) => (list.includes(id) ? list.filter((item) => item !== id) : [...list, id])
+  const filteredUsers = users.filter((user) => {
+    const keyword = userFilter.trim().toLowerCase()
+    if (!keyword) return true
+    return user.username.toLowerCase().includes(keyword) || user.email.toLowerCase().includes(keyword)
+  })
 
   return (
     <Dialog open={Boolean(channel)} onOpenChange={(open) => !open && onClose()}>
@@ -565,10 +619,52 @@ function UserChannelDialog({
             <Switch checked={Boolean(draft.enabled)} onCheckedChange={(checked) => setDraft({ ...draft, enabled: checked })} />
             {t("common.enabled")}
           </label>
+          <div className="space-y-2 rounded-md border p-3">
+            <div className="text-sm font-medium">{copy.channelVisibility}</div>
+            <p className="text-xs text-muted-foreground">{copy.channelVisibilityHint}</p>
+            <div className="space-y-1">
+              <div className="text-xs font-medium text-muted-foreground">{copy.visibleGroups}</div>
+              {groups.length === 0 ? (
+                <div className="text-xs text-muted-foreground">{copy.noGroupsAvailable}</div>
+              ) : (
+                <div className="flex max-h-28 flex-wrap gap-x-4 gap-y-1 overflow-y-auto">
+                  {groups.map((group) => (
+                    <label key={group.id} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={allowedGroupIDs.includes(group.id)}
+                        onCheckedChange={() => setAllowedGroupIDs((list) => toggleID(list, group.id))}
+                      />
+                      {group.name}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs font-medium text-muted-foreground">{copy.visibleUsers}</div>
+              <Input value={userFilter} placeholder={copy.filterUsersPlaceholder} onChange={(event) => setUserFilter(event.target.value)} />
+              <div className="max-h-36 space-y-1 overflow-y-auto">
+                {filteredUsers.length === 0 ? (
+                  <div className="text-xs text-muted-foreground">{copy.noUsersMatched}</div>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <label key={user.id} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={allowedUserIDs.includes(user.id)}
+                        onCheckedChange={() => setAllowedUserIDs((list) => toggleID(list, user.id))}
+                      />
+                      <span className="min-w-0 truncate">{user.username}</span>
+                      <span className="min-w-0 truncate text-xs text-muted-foreground">{user.email}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
-          <Button onClick={() => onSave(draft)}>{t("admin.save")}</Button>
+          <Button onClick={() => onSave(draft, allowedGroupIDs, allowedUserIDs)}>{t("admin.save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -2023,6 +2119,14 @@ const zhChannelCopy = {
   missingBaseURL: "渠道 Base URL 不能为空",
   close: "关闭",
   routingAlgorithm: "路由算法",
+  channelVisibility: "可见范围",
+  channelVisibilityHint: "默认所有用户可选。勾选分组或用户后，仅这些分组成员和指定用户可以选择此渠道。",
+  visibleGroups: "允许的分组",
+  visibleUsers: "允许的用户",
+  noGroupsAvailable: "暂无分组",
+  filterUsersPlaceholder: "搜索用户名或邮箱",
+  noUsersMatched: "没有匹配的用户",
+  visibilityRestricted: "限 {groups} 组 / {users} 人",
   routingPriority: "优先级",
   routingRoundRobin: "轮询",
   routingWeightedRoundRobin: "按权重轮询",
@@ -2079,6 +2183,14 @@ const enChannelCopy: typeof zhChannelCopy = {
   missingBaseURL: "Channel Base URL is required",
   close: "Close",
   routingAlgorithm: "Routing algorithm",
+  channelVisibility: "Visibility",
+  channelVisibilityHint: "Available to everyone by default. Selecting groups or users limits this channel to those group members and users.",
+  visibleGroups: "Allowed groups",
+  visibleUsers: "Allowed users",
+  noGroupsAvailable: "No groups",
+  filterUsersPlaceholder: "Search username or email",
+  noUsersMatched: "No matching users",
+  visibilityRestricted: "{groups} groups / {users} users",
   routingPriority: "Priority",
   routingRoundRobin: "Round robin",
   routingWeightedRoundRobin: "Weighted round robin",
