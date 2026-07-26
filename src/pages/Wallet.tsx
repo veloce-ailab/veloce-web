@@ -1,6 +1,6 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CalendarCheck, Copy, CreditCard, Gift, WalletCards } from "lucide-react"
+import { CalendarCheck, Copy, CreditCard, Gift, Package, WalletCards } from "lucide-react"
 import { useEffect, useState } from "react"
 import api from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
@@ -70,6 +70,23 @@ interface PaymentOrder {
   payment_url?: string
 }
 
+interface SubscriptionPlanInfo {
+  id: number
+  name: string
+  reset_amount: string | number
+  reset_interval_days: number
+  price: string | number
+  duration_days: number
+}
+
+interface UserSubscriptionInfo {
+  id: number
+  balance: string | number
+  active_until?: string | null
+  next_reset_at: string
+  plan: SubscriptionPlanInfo
+}
+
 export default function Wallet() {
   const { language, t } = useI18n()
   const copy = language === "zh" ? zhWalletCopy : enWalletCopy
@@ -82,6 +99,8 @@ export default function Wallet() {
   const [paymentMethod, setPaymentMethod] = useState("alipay")
   const [paymentChannel, setPaymentChannel] = useState("")
   const [paymentStatus, setPaymentStatus] = useState("")
+  const [purchaseStatus, setPurchaseStatus] = useState("")
+  const [confirmPlanID, setConfirmPlanID] = useState(0)
 
   const { data: user } = useQuery<CurrentUser>({
     queryKey: ["me"],
@@ -115,6 +134,22 @@ export default function Wallet() {
       return res.data
     },
     enabled: publicSettings.checkin_enabled,
+  })
+  const { data: subscriptions = [] } = useQuery<UserSubscriptionInfo[]>({
+    queryKey: ["my-subscription"],
+    queryFn: async () => {
+      const res = await api.get("/user/subscription")
+      return Array.isArray(res.data) ? res.data : []
+    },
+    enabled: !personalMode,
+  })
+  const { data: purchasablePlans = [] } = useQuery<SubscriptionPlanInfo[]>({
+    queryKey: ["purchasable-subscription-plans"],
+    queryFn: async () => {
+      const res = await api.get("/user/subscription-plans")
+      return Array.isArray(res.data) ? res.data : []
+    },
+    enabled: !personalMode,
   })
   const { data: paymentConfig } = useQuery<PaymentConfig>({
     queryKey: ["payment-config"],
@@ -181,6 +216,24 @@ export default function Wallet() {
       }
     },
     onError: (error) => setPaymentStatus(apiErrorMessage(error, copy.paymentOrderFailed)),
+  })
+
+  const purchaseSubscription = useMutation({
+    mutationFn: async (planID: number) => {
+      const res = await api.post("/user/subscription/purchase", { plan_id: planID })
+      return res.data as { balance: string | number }
+    },
+    onSuccess: () => {
+      setPurchaseStatus(copy.purchaseSuccess)
+      setConfirmPlanID(0)
+      queryClient.invalidateQueries({ queryKey: ["me"] })
+      queryClient.invalidateQueries({ queryKey: ["my-subscription"] })
+      queryClient.invalidateQueries({ queryKey: ["stats", "user"] })
+    },
+    onError: (error) => {
+      setPurchaseStatus(apiErrorMessage(error, copy.purchaseFailed))
+      setConfirmPlanID(0)
+    },
   })
 
   const copyText = async (value: string) => {
@@ -274,6 +327,84 @@ export default function Wallet() {
         </Card>
         )}
 
+        {!personalMode && (subscriptions.length > 0 || purchasablePlans.length > 0) && (
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package size={18} />
+                {copy.subscriptions}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="text-sm font-medium">{copy.mySubscriptions}</div>
+                {subscriptions.length === 0 ? (
+                  <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">{copy.noSubscriptions}</div>
+                ) : (
+                  subscriptions.map((subscription) => (
+                    <div key={subscription.id} className="grid gap-2 rounded-md border p-3 text-sm sm:grid-cols-[1fr_auto]">
+                      <div className="min-w-0 space-y-1">
+                        <div className="font-medium">{subscription.plan?.name || "-"}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {copy.subscriptionQuota
+                            .replace("{balance}", `${currency}${subscription.balance}`)
+                            .replace("{amount}", `${currency}${subscription.plan?.reset_amount ?? "-"}`)
+                            .replace("{days}", String(subscription.plan?.reset_interval_days ?? "-"))}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {copy.subscriptionNextReset.replace("{date}", formatWalletDate(subscription.next_reset_at))}
+                          {" · "}
+                          {subscription.active_until
+                            ? copy.subscriptionActiveUntil.replace("{date}", formatWalletDate(subscription.active_until))
+                            : copy.subscriptionPermanent}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              {purchasablePlans.length > 0 && (
+                <div className="space-y-2 border-t pt-4">
+                  <div className="text-sm font-medium">{copy.buySubscription}</div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {purchasablePlans.map((plan) => (
+                      <div key={plan.id} className="flex flex-col gap-2 rounded-md border p-3 text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 truncate font-medium">{plan.name}</div>
+                          <div className="shrink-0 text-base font-semibold">{currency}{plan.price}</div>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {copy.planSummary
+                            .replace("{amount}", `${currency}${plan.reset_amount}`)
+                            .replace("{days}", String(plan.reset_interval_days))}
+                          {" · "}
+                          {plan.duration_days > 0 ? copy.planDurationDays.replace("{days}", String(plan.duration_days)) : copy.subscriptionPermanent}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant={confirmPlanID === plan.id ? "default" : "outline"}
+                          disabled={purchaseSubscription.isPending}
+                          onClick={() => {
+                            if (confirmPlanID === plan.id) {
+                              purchaseSubscription.mutate(plan.id)
+                            } else {
+                              setConfirmPlanID(plan.id)
+                              setPurchaseStatus("")
+                            }
+                          }}
+                        >
+                          {confirmPlanID === plan.id ? copy.confirmPurchase : copy.purchase}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {purchaseStatus && <div className="text-sm text-muted-foreground">{purchaseStatus}</div>}
+            </CardContent>
+          </Card>
+        )}
+
         {publicSettings.checkin_enabled && (
           <Card>
             <CardHeader>
@@ -364,6 +495,17 @@ function nextStreakRewardText(status: CheckInStatus | undefined) {
   return `${status.next_streak_reward.day}d +${status.currency_display_name}${status.next_streak_reward.amount}`
 }
 
+function formatWalletDate(value?: string | null) {
+  if (!value) {
+    return "-"
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date.toLocaleDateString()
+}
+
 function parseJSONList(raw: string) {
   try {
     const parsed = JSON.parse(raw || "[]")
@@ -410,6 +552,20 @@ const zhWalletCopy = {
   paymentOrderCreated: "订单 {order} 已创建，充值 {amount}。正在跳转到支付页面...",
   paymentOrderFailed: "创建支付订单失败",
   paymentChannel: "支付通道",
+  subscriptions: "订阅套餐",
+  mySubscriptions: "我的订阅",
+  noSubscriptions: "暂无订阅",
+  subscriptionQuota: "剩余额度 {balance} / 每 {days} 天重置为 {amount}",
+  subscriptionNextReset: "下次重置 {date}",
+  subscriptionActiveUntil: "有效期至 {date}",
+  subscriptionPermanent: "长期有效",
+  buySubscription: "购买套餐",
+  planSummary: "每 {days} 天重置 {amount} 额度",
+  planDurationDays: "时长 {days} 天",
+  purchase: "购买",
+  confirmPurchase: "确认购买？",
+  purchaseSuccess: "购买成功，订阅已生效。",
+  purchaseFailed: "购买失败",
   dailyCheckIn: "每日签到",
   currentStreak: "当前连续签到",
   todayReward: "今日奖励",
@@ -462,6 +618,20 @@ const enWalletCopy: typeof zhWalletCopy = {
   paymentOrderCreated: "Order {order} created for {amount}. Redirecting to payment...",
   paymentOrderFailed: "Failed to create payment order",
   paymentChannel: "Payment channel",
+  subscriptions: "Subscriptions",
+  mySubscriptions: "My subscriptions",
+  noSubscriptions: "No subscriptions yet",
+  subscriptionQuota: "Remaining {balance} / resets to {amount} every {days} days",
+  subscriptionNextReset: "Next reset {date}",
+  subscriptionActiveUntil: "Active until {date}",
+  subscriptionPermanent: "No expiry",
+  buySubscription: "Buy a plan",
+  planSummary: "Resets {amount} every {days} days",
+  planDurationDays: "{days} days",
+  purchase: "Buy",
+  confirmPurchase: "Confirm purchase?",
+  purchaseSuccess: "Purchase complete. Subscription is active.",
+  purchaseFailed: "Purchase failed",
   dailyCheckIn: "Daily check-in",
   currentStreak: "Current streak",
   todayReward: "Today's reward",

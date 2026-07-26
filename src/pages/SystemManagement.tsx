@@ -89,6 +89,9 @@ interface SubscriptionPlan {
   name: string
   reset_amount: string | number
   reset_interval_days: number
+  price: string | number
+  duration_days: number
+  purchasable: boolean
   enabled: boolean
   created_at: string
 }
@@ -115,6 +118,9 @@ interface SubscriptionPlanDraft {
   name: string
   reset_amount: string
   reset_interval_days: string
+  price: string
+  duration_days: string
+  purchasable: boolean
   enabled: boolean
 }
 
@@ -561,6 +567,9 @@ const defaultSubscriptionPlanDraft: SubscriptionPlanDraft = {
   name: "",
   reset_amount: "",
   reset_interval_days: "30",
+  price: "",
+  duration_days: "30",
+  purchasable: false,
   enabled: true,
 }
 
@@ -1012,7 +1021,7 @@ export default function SystemManagement({ section = "general", initialTab }: { 
   const shouldShowSave = Boolean(systemSettingsFieldsByTab[activeTab]?.length)
   const visibleTabs = systemTabs(copy).filter((tab) => allowedTabs.includes(tab.id))
   const canCreateRedeemCode = Number(redeemDraft.amount || 0) > 0 || Boolean(redeemDraft.group_id) || Boolean(redeemDraft.subscription_plan_id)
-  const canSaveSubscriptionPlan = Boolean(subscriptionPlanDraft.name.trim()) && Number(subscriptionPlanDraft.reset_amount || 0) > 0 && Number(subscriptionPlanDraft.reset_interval_days || 0) > 0
+  const canSaveSubscriptionPlan = Boolean(subscriptionPlanDraft.name.trim()) && Number(subscriptionPlanDraft.reset_amount || 0) > 0 && Number(subscriptionPlanDraft.reset_interval_days || 0) > 0 && (!subscriptionPlanDraft.purchasable || Number(subscriptionPlanDraft.price || 0) > 0)
   const canSaveMetaModel = Boolean(metaModelDraft.name.trim() && metaModelDraft.dsl.trim())
   const canSaveStatusMonitor = Boolean(statusMonitorDraft.name.trim() && statusMonitorDraft.target_url.trim())
   const canSaveAnnouncement = Boolean(announcementDraft.title.trim() && announcementDraft.content.trim())
@@ -1877,10 +1886,12 @@ export default function SystemManagement({ section = "general", initialTab }: { 
 
             <div className="overflow-x-auto rounded-md border">
               <div className="min-w-[720px]">
-                <div className="grid grid-cols-[1fr_150px_150px_120px_160px] border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
+                <div className="grid grid-cols-[1fr_120px_120px_120px_110px_100px_160px] border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
                   <div>{copy.planName}</div>
                   <div>{copy.resetAmount}</div>
                   <div>{copy.resetInterval}</div>
+                  <div>{copy.planPrice}</div>
+                  <div>{copy.planDuration}</div>
                   <div>{copy.status}</div>
                   <div className="text-right">{t("common.actions")}</div>
                 </div>
@@ -1888,10 +1899,12 @@ export default function SystemManagement({ section = "general", initialTab }: { 
                   <div className="px-3 py-8 text-center text-sm text-muted-foreground">{copy.noSubscriptionPlans}</div>
                 ) : (
                   subscriptionPlans.map((plan) => (
-                    <div key={plan.id} className="grid grid-cols-[1fr_150px_150px_120px_160px] items-center border-b px-3 py-3 text-sm last:border-b-0">
+                    <div key={plan.id} className="grid grid-cols-[1fr_120px_120px_120px_110px_100px_160px] items-center border-b px-3 py-3 text-sm last:border-b-0">
                       <div className="font-medium">{plan.name}</div>
                       <div>{formatCurrency(plan.reset_amount, form.payment_currency_display_name)}</div>
                       <div>{formatDuration(plan.reset_interval_days, copy)}</div>
+                      <div>{plan.purchasable ? formatCurrency(plan.price, form.payment_currency_display_name) : copy.notPurchasable}</div>
+                      <div>{plan.duration_days > 0 ? formatDuration(plan.duration_days, copy) : copy.planPermanent}</div>
                       <div>{plan.enabled ? copy.enabled : copy.disabled}</div>
                       <div className="flex justify-end gap-2">
                         <Button
@@ -1903,6 +1916,9 @@ export default function SystemManagement({ section = "general", initialTab }: { 
                               name: plan.name,
                               reset_amount: String(plan.reset_amount ?? ""),
                               reset_interval_days: String(plan.reset_interval_days ?? 30),
+                              price: String(plan.price ?? ""),
+                              duration_days: String(plan.duration_days ?? 0),
+                              purchasable: Boolean(plan.purchasable),
                               enabled: plan.enabled,
                             })
                             setIsSubscriptionPlanDialogOpen(true)
@@ -3214,6 +3230,28 @@ function SubscriptionPlanDialog({
             onChange={(value) => onDraftChange({ ...draft, reset_interval_days: value })}
           />
           <label className="flex h-10 items-center gap-2 text-sm">
+            <Switch checked={draft.purchasable} onCheckedChange={(checked) => onDraftChange({ ...draft, purchasable: checked })} />
+            {copy.planPurchasable}
+          </label>
+          {draft.purchasable && (
+            <>
+              <TextField
+                label={copy.planPrice}
+                value={draft.price}
+                placeholder={copy.planPricePlaceholder}
+                type="number"
+                onChange={(value) => onDraftChange({ ...draft, price: value })}
+              />
+              <TextField
+                label={copy.planDuration}
+                value={draft.duration_days}
+                placeholder={copy.planDurationPlaceholder}
+                type="number"
+                onChange={(value) => onDraftChange({ ...draft, duration_days: value })}
+              />
+            </>
+          )}
+          <label className="flex h-10 items-center gap-2 text-sm">
             <Switch checked={draft.enabled} onCheckedChange={(checked) => onDraftChange({ ...draft, enabled: checked })} />
             {copy.enabled}
           </label>
@@ -3542,6 +3580,9 @@ function subscriptionPlanPayload(draft: SubscriptionPlanDraft) {
     name: draft.name.trim(),
     reset_amount: Number(draft.reset_amount || 0),
     reset_interval_days: Number(draft.reset_interval_days || 0),
+    price: Number(draft.price || 0),
+    duration_days: Number(draft.duration_days || 0),
+    purchasable: draft.purchasable,
     enabled: draft.enabled,
   }
 }
@@ -4380,6 +4421,13 @@ const zhCopy = {
   resetAmountPlaceholder: "每周期额度",
   resetInterval: "重置周期",
   resetIntervalPlaceholder: "天数，例如 30",
+  planPrice: "购买价格",
+  planPricePlaceholder: "例如 10",
+  planDuration: "购买时长",
+  planDurationPlaceholder: "天数，0 表示永久",
+  planPurchasable: "允许用户直接购买",
+  planPermanent: "永久",
+  notPurchasable: "不可购买",
   subscriptionPlan: "订阅套餐",
   noSubscriptionPlan: "不授予套餐",
   subscriptionDuration: "订阅时长",
@@ -4841,6 +4889,13 @@ const enCopy: SystemCopy = {
   resetAmountPlaceholder: "Quota per period",
   resetInterval: "Reset interval",
   resetIntervalPlaceholder: "Days, for example 30",
+  planPrice: "Price",
+  planPricePlaceholder: "For example 10",
+  planDuration: "Duration",
+  planDurationPlaceholder: "Days; 0 means permanent",
+  planPurchasable: "Allow direct purchase",
+  planPermanent: "Permanent",
+  notPurchasable: "Not purchasable",
   subscriptionPlan: "Subscription plan",
   noSubscriptionPlan: "No subscription plan",
   subscriptionDuration: "Subscription duration",
