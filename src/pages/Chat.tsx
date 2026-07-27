@@ -4,7 +4,7 @@ import type { ChangeEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNo
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { createPortal } from "react-dom"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { Activity, ArrowDown, ArrowUp, Bot, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileDiff, FileText, Folder, FolderOpen, FolderPlus, GitBranch, GitCompareArrows, Hand, ListTodo, Loader2, Menu, MessageCircleQuestion, MessageSquarePlus, Monitor, MoreHorizontal, PanelRightClose, PanelRightOpen, Paperclip, Pencil, Plus, Quote, RefreshCw, Search, Send, Server, Settings, ShieldCheck, Sparkles, Trash2, Upload, User, X } from "lucide-react"
+import { Activity, ArrowDown, ArrowUp, Bot, Check, ChevronDown, ChevronLeft, ChevronRight, Cloud, Copy, FileDiff, FileText, Folder, FolderOpen, FolderPlus, GitBranch, GitCompareArrows, Hand, ListTodo, Loader2, Menu, MessageCircleQuestion, MessageSquarePlus, Monitor, MoreHorizontal, PanelRightClose, PanelRightOpen, Paperclip, Pencil, Plus, Quote, RefreshCw, Search, Send, Server, Settings, ShieldCheck, Sparkles, Trash2, Upload, User, X } from "lucide-react"
 import api, { apiURL, getAuthToken, isDesktopTarget } from "@/lib/api"
 import { ChatSetupGuide } from "@/components/onboarding/SetupGuides"
 import { useI18n, type TranslationKey } from "@/lib/i18n"
@@ -225,6 +225,7 @@ interface ChatSession {
 	knowledge_base_ids: string[]
   connector_device_id?: string
   connector_workspace_path?: string
+  cloud_sandbox_id?: string
   connector_auto_approve: boolean
   connector_approval_mode: ConnectorApprovalMode
   connector_command_prefixes: string[]
@@ -237,6 +238,13 @@ interface ChatSession {
   disabled_tool_groups: ChatToolGroupKey[]
   created_at: string
   updated_at: string
+}
+
+interface CloudSandboxOption {
+  id: string
+  name: string
+  image: string
+  status: string
 }
 
 interface ChatRun {
@@ -649,6 +657,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
   const [sessionCapabilityPicker, setSessionCapabilityPicker] = useState<SessionCapabilityPicker>(null)
   const [pendingConnectorDeviceID, setPendingConnectorDeviceID] = useState("")
   const [pendingConnectorWorkspace, setPendingConnectorWorkspace] = useState("")
+  const [pendingCloudSandboxID, setPendingCloudSandboxID] = useState("")
   const [pendingConnectorApprovalMode, setPendingConnectorApprovalMode] = useState<ConnectorApprovalMode>("manual")
   const [pendingConnectorCommandPrefixes, setPendingConnectorCommandPrefixes] = useState("")
   const [isWorkspacePickerOpen, setIsWorkspacePickerOpen] = useState(false)
@@ -821,6 +830,32 @@ export default function Chat({ variant = "basic" }: ChatProps) {
     queryFn: async () => {
       const res = await api.get("/user/advanced-chat/devices")
       return Array.isArray(res.data) ? res.data.map(normalizeConnectorDevice).filter((device): device is ConnectorDevice => Boolean(device)) : []
+    },
+  })
+
+  const { data: cloudSandboxes = [] } = useQuery<CloudSandboxOption[]>({
+    queryKey: ["chat-cloud-sandboxes"],
+    enabled: isAdvanced,
+    queryFn: async () => {
+      const res = await api.get("/user/advanced-chat/cloud-sandboxes")
+      if (!Array.isArray(res.data)) {
+        return []
+      }
+      return res.data.flatMap((item: unknown) => {
+        if (!isRecord(item)) {
+          return []
+        }
+        const id = stringFromUnknown(item.id)
+        if (!id) {
+          return []
+        }
+        return [{
+          id,
+          name: stringFromUnknown(item.name) || id,
+          image: stringFromUnknown(item.image) || "",
+          status: stringFromUnknown(item.status) || "",
+        }]
+      })
     },
   })
 
@@ -1083,6 +1118,10 @@ export default function Chat({ variant = "basic" }: ChatProps) {
   const selectedConnectorDevice = useMemo(
     () => connectorDevices.find((device) => device.id === currentSession?.connector_device_id),
     [currentSession?.connector_device_id, connectorDevices]
+  )
+  const selectedCloudSandbox = useMemo(
+    () => cloudSandboxes.find((sandbox) => sandbox.id === currentSession?.cloud_sandbox_id),
+    [currentSession?.cloud_sandbox_id, cloudSandboxes]
   )
   const sharedPoolDeviceIDs = useMemo(() => new Set(sharedPoolDevices.map((device) => device.external_device_id)), [sharedPoolDevices])
   const selectableConnectorDevices = assistantConnectorToolsEnabled
@@ -1874,7 +1913,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
     if (!isAdvanced || !isDesktop || activeRunMode !== "assistant" || !currentSession || !localDesktopConnectorDevice) {
       return
     }
-    if (currentSession.connector_device_id === localDesktopConnectorDevice.id || autoLocalAssistantSessionIDsRef.current.has(currentSession.id)) {
+    if (currentSession.cloud_sandbox_id || currentSession.connector_device_id === localDesktopConnectorDevice.id || autoLocalAssistantSessionIDsRef.current.has(currentSession.id)) {
       return
     }
     autoLocalAssistantSessionIDsRef.current.add(currentSession.id)
@@ -1973,8 +2012,9 @@ export default function Chat({ variant = "basic" }: ChatProps) {
       run_mode: mode,
       agent_id: mode === "agent_group" ? undefined : session.agent_id || defaultAgentID,
       agent_group_id: mode === "agent_group" ? session.agent_group_id : undefined,
-      connector_device_id: mode === "chat" ? undefined : localDeviceID || session.connector_device_id,
-      connector_workspace_path: mode === "chat" ? undefined : localDeviceID && session.connector_device_id !== localDeviceID ? undefined : session.connector_workspace_path,
+      connector_device_id: mode === "chat" || session.cloud_sandbox_id ? undefined : localDeviceID || session.connector_device_id,
+      connector_workspace_path: mode === "chat" || session.cloud_sandbox_id ? undefined : localDeviceID && session.connector_device_id !== localDeviceID ? undefined : session.connector_workspace_path,
+      cloud_sandbox_id: mode === "chat" ? undefined : session.cloud_sandbox_id,
       connector_auto_approve: mode === "chat" ? false : session.connector_auto_approve,
       connector_approval_mode: mode === "chat" ? "manual" : connectorApprovalModeFor(session),
       connector_command_prefixes: mode === "chat" ? [] : session.connector_command_prefixes || [],
@@ -2049,10 +2089,35 @@ export default function Chat({ variant = "basic" }: ChatProps) {
       ...session,
       connector_device_id: deviceID || undefined,
       connector_workspace_path: workspacePath || undefined,
+      cloud_sandbox_id: deviceID ? undefined : session.cloud_sandbox_id,
       connector_auto_approve: approvalMode === "full_access",
       connector_approval_mode: approvalMode,
       connector_command_prefixes: uniqueStrings(commandPrefixes),
     }), { persist: true })
+  }
+
+  const setSessionCloudSandbox = (sandboxID: string) => {
+    if (!currentSession) {
+      return
+    }
+    if (!assistantConnectorToolsEnabled) {
+      error(copy.assistantWorkspaceToolsDisabled)
+      return
+    }
+    // Cloud sandboxes are host-policy governed: the backend forces the
+    // full-access approval mode, so mirror that in the local session state.
+    updateSession(currentSession.id, (session) => ({
+      ...session,
+      cloud_sandbox_id: sandboxID || undefined,
+      connector_device_id: undefined,
+      connector_workspace_path: undefined,
+      connector_auto_approve: Boolean(sandboxID),
+      connector_approval_mode: sandboxID ? "full_access" : session.connector_approval_mode,
+    }), { persist: true })
+    setPendingCloudSandboxID(sandboxID)
+    setPendingConnectorDeviceID("")
+    setPendingConnectorWorkspace("")
+    setWorkspaceSkills([])
   }
 
   const setSessionConnectorDevice = (deviceID: string) => {
@@ -2072,6 +2137,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
       ...session,
       connector_device_id: deviceID || undefined,
       connector_workspace_path: keepWorkspace || undefined,
+      cloud_sandbox_id: deviceID ? undefined : session.cloud_sandbox_id,
     }), { persist: true })
     setPendingConnectorDeviceID(deviceID)
     setPendingConnectorWorkspace(keepWorkspace || "")
@@ -2180,11 +2246,13 @@ export default function Chat({ variant = "basic" }: ChatProps) {
       ...session,
       connector_device_id: undefined,
       connector_workspace_path: undefined,
+      cloud_sandbox_id: undefined,
       agent_group_id: undefined,
       connector_auto_approve: false,
       connector_approval_mode: "manual",
       connector_command_prefixes: [],
     }), { persist: true })
+    setPendingCloudSandboxID("")
     setWorkspaceSkills([])
   }
 
@@ -2409,7 +2477,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
         error(copy.assistantMCPToolsDisabled)
         return
       }
-      if (!assistantConnectorToolsEnabled && (session.connector_device_id || session.connector_workspace_path)) {
+      if (!assistantConnectorToolsEnabled && (session.connector_device_id || session.connector_workspace_path || session.cloud_sandbox_id)) {
         error(copy.assistantWorkspaceToolsDisabled)
         return
       }
@@ -2479,8 +2547,9 @@ export default function Chat({ variant = "basic" }: ChatProps) {
               skill_ids: session.skill_ids,
               mcp_server_ids: session.mcp_server_ids,
 				knowledge_base_ids: session.knowledge_base_ids,
-              connector_device_id: session.connector_device_id || "",
-              connector_workspace_path: session.connector_workspace_path || "",
+              connector_device_id: session.cloud_sandbox_id ? "" : session.connector_device_id || "",
+              connector_workspace_path: session.cloud_sandbox_id ? "" : session.connector_workspace_path || "",
+              cloud_sandbox_id: session.cloud_sandbox_id || "",
               connector_auto_approve: session.connector_auto_approve,
               connector_approval_mode: connectorApprovalModeFor(session),
               connector_command_prefixes: session.connector_command_prefixes,
@@ -4480,6 +4549,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
                       if (tab === "device") {
                         setPendingConnectorDeviceID(currentSession?.connector_device_id || connectorDevices[0]?.id || "")
                         setPendingConnectorWorkspace(currentSession?.connector_workspace_path || "")
+                        setPendingCloudSandboxID(currentSession?.cloud_sandbox_id || "")
                       }
                       setConfigTab(tab)
                     }}
@@ -4844,9 +4914,53 @@ export default function Chat({ variant = "basic" }: ChatProps) {
                         <X size={15} />
                       </Button>
                     </div>
+                  ) : currentSession?.cloud_sandbox_id ? (
+                    <div className="grid grid-cols-[1fr_auto] gap-2 rounded-md border p-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">{selectedCloudSandbox?.name || currentSession.cloud_sandbox_id}</div>
+                        <div className="mt-1 truncate text-xs text-muted-foreground">{selectedCloudSandbox?.image || copy.cloudSandbox}</div>
+                        <div className="mt-1 text-xs text-primary">{copy.cloudSandbox}</div>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => setSessionCloudSandbox("")} title={copy.remove}>
+                        <X size={15} />
+                      </Button>
+                    </div>
                   ) : (
                     <div className="rounded-md border border-dashed px-3 py-5 text-center text-sm text-muted-foreground">{copy.noDeviceSelected}</div>
                   )}
+
+                  <div className="space-y-2 rounded-md border p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <Cloud size={15} />
+                        {copy.cloudSandbox}
+                      </div>
+                      <Button asChild variant="outline" size="sm">
+                        <Link to="/chat/sandboxes">{copy.manageCloudSandboxes}</Link>
+                      </Button>
+                    </div>
+                    <div className="text-xs text-muted-foreground">{copy.cloudSandboxHint}</div>
+                    <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                      <Select value={String(pendingCloudSandboxID || "__shadcn_empty__")} onValueChange={(value) => setPendingCloudSandboxID(value === "__shadcn_empty__" ? "" : value)}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
+                        <SelectItem value="__shadcn_empty__">{cloudSandboxes.length ? copy.selectCloudSandbox : copy.noCloudSandboxes}</SelectItem>
+                        {cloudSandboxes.map((sandbox) => (
+                          <SelectItem key={sandbox.id} value={String(sandbox.id)}>
+                            {sandbox.name}{sandbox.image ? ` · ${sandbox.image}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent></Select>
+                      <div className="flex items-end">
+                        <Button
+                          className="w-full gap-2"
+                          disabled={!pendingCloudSandboxID}
+                          onClick={() => setSessionCloudSandbox(pendingCloudSandboxID)}
+                        >
+                          <Check size={16} />
+                          {copy.useCloudSandbox}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="space-y-2 rounded-md border p-3">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -6493,8 +6607,9 @@ async function saveAdvancedSessionSnapshot(session: ChatSession): Promise<ChatSe
     skill_ids: safeSession.skill_ids,
     mcp_server_ids: safeSession.mcp_server_ids,
 		knowledge_base_ids: safeSession.knowledge_base_ids,
-    connector_device_id: isChat ? "" : safeSession.connector_device_id || "",
-    connector_workspace_path: isChat ? "" : safeSession.connector_workspace_path || "",
+    connector_device_id: isChat || safeSession.cloud_sandbox_id ? "" : safeSession.connector_device_id || "",
+    connector_workspace_path: isChat || safeSession.cloud_sandbox_id ? "" : safeSession.connector_workspace_path || "",
+    cloud_sandbox_id: isChat ? "" : safeSession.cloud_sandbox_id || "",
     connector_auto_approve: isChat ? false : safeSession.connector_auto_approve,
     connector_approval_mode: isChat ? "manual" : connectorApprovalModeFor(safeSession),
     connector_command_prefixes: isChat ? [] : safeSession.connector_command_prefixes,
@@ -7106,6 +7221,7 @@ function normalizeSession(value: unknown): ChatSession | null {
 		knowledge_base_ids: stringArrayFromUnknown(value.knowledge_base_ids),
     connector_device_id: stringFromUnknown(value.connector_device_id) || undefined,
     connector_workspace_path: stringFromUnknown(value.connector_workspace_path) || undefined,
+    cloud_sandbox_id: stringFromUnknown(value.cloud_sandbox_id) || undefined,
     connector_auto_approve: value.connector_auto_approve === true,
     connector_approval_mode: normalizeConnectorApprovalMode(value.connector_approval_mode, value.connector_auto_approve === true),
     connector_command_prefixes: stringArrayFromUnknown(value.connector_command_prefixes),
@@ -8404,6 +8520,12 @@ const chatCopyKeys = {
   connectedDevices: "chat.connectedDevices",
   sessionDevice: "chat.sessionDevice",
   manageDevices: "chat.manageDevices",
+  cloudSandbox: "chat.cloudSandbox",
+  manageCloudSandboxes: "chat.manageCloudSandboxes",
+  selectCloudSandbox: "chat.selectCloudSandbox",
+  noCloudSandboxes: "chat.noCloudSandboxes",
+  useCloudSandbox: "chat.useCloudSandbox",
+  cloudSandboxHint: "chat.cloudSandboxHint",
   createConnectorToken: "chat.createConnectorToken",
   creatingConnectorToken: "chat.creatingConnectorToken",
   connectorToken: "chat.connectorToken",
