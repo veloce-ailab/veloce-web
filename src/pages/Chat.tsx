@@ -694,6 +694,8 @@ export default function Chat({ variant = "basic" }: ChatProps) {
   const [isSending, setIsSending] = useState(false)
   const [isStreamActive, setIsStreamActive] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
+  const [processingSessionID, setProcessingSessionID] = useState("")
+  const [processingNowMs, setProcessingNowMs] = useState(() => Date.now())
   const abortControllerRef = useRef<AbortController | null>(null)
   const observedTaskRunStatesRef = useRef<Map<string, { runID: string; status: string }>>(new Map())
   const hasObservedTaskRunStatesRef = useRef(false)
@@ -995,6 +997,26 @@ export default function Chat({ variant = "basic" }: ChatProps) {
   const activeRun = isAdvanced ? currentSession?.latest_run : undefined
   const isActiveRunRunning = isRunActive(activeRun)
   const activeRunID = activeRun?.id || ""
+  const isProcessingLive = Boolean(currentSession) && ((processingSessionID === currentSession?.id && (isSending || isStreamActive)) || isActiveRunRunning)
+  useEffect(() => {
+    if (!isProcessingLive) {
+      return
+    }
+    setProcessingNowMs(Date.now())
+    const timer = window.setInterval(() => setProcessingNowMs(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [isProcessingLive])
+  const liveProcessingUserMessageIndex = useMemo(() => {
+    if (!isProcessingLive) {
+      return -1
+    }
+    for (let index = currentMessages.length - 1; index >= 0; index -= 1) {
+      if (currentMessages[index].role === "user") {
+        return index
+      }
+    }
+    return -1
+  }, [currentMessages, isProcessingLive])
   const taskChangeMessage = useMemo(() => {
     if (activeRun?.assistant_message_id) {
       const activeMessage = currentMessages.find((message) => message.id === activeRun.assistant_message_id)
@@ -2507,6 +2529,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
       setAttachments([])
     }
     setIsSending(true)
+    setProcessingSessionID(session.id)
     cancelEdit()
 
     const recordProcessingDuration = () => {
@@ -2793,6 +2816,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
     } finally {
       recordProcessingDuration()
       setIsSending(false)
+      setProcessingSessionID("")
     }
   }
 
@@ -4129,7 +4153,11 @@ export default function Chat({ variant = "basic" }: ChatProps) {
                 ) : (
                   <>
                     {currentSession.messages.map((message, messageIndex) => {
-                      const processingDuration = message.role === "user" ? processingDurationForUserMessage(currentSession.messages, messageIndex) : undefined
+                      const processingDuration = message.role === "user"
+                        ? messageIndex === liveProcessingUserMessageIndex
+                          ? liveProcessingDurationMs(message, processingNowMs)
+                          : processingDurationForUserMessage(currentSession.messages, messageIndex, activeRun)
+                        : undefined
                       if (message.role === "assistant" && editingMessageID !== message.id) {
                         return (
                           <AssistantMessageSequence
@@ -7781,10 +7809,14 @@ function normalizedRound(round?: number) {
   return typeof round === "number" && Number.isFinite(round) && round > 0 ? round : 1
 }
 
-function processingDurationForUserMessage(messages: ChatMessage[], messageIndex: number) {
+function processingDurationForUserMessage(messages: ChatMessage[], messageIndex: number, run?: ChatRun) {
   const message = messages[messageIndex]
   if (!message || message.role !== "user") {
     return undefined
+  }
+  const backendRunDuration = backendRunDurationForUserMessage(messages, messageIndex, run)
+  if (backendRunDuration !== undefined) {
+    return backendRunDuration
   }
   if (typeof message.processing_duration_ms === "number" && Number.isFinite(message.processing_duration_ms)) {
     return Math.max(0, message.processing_duration_ms)
@@ -7807,6 +7839,36 @@ function processingDurationForUserMessage(messages: ChatMessage[], messageIndex:
     }
   }
   return finishedAt > 0 ? Math.max(0, finishedAt - startedAt) : undefined
+}
+
+// 运行结束后以后端上报的 started_at/finished_at 为准，覆盖前端本地计时。
+function backendRunDurationForUserMessage(messages: ChatMessage[], messageIndex: number, run?: ChatRun) {
+  if (!run || isRunActiveStatus(run.status) || !run.assistant_message_id || !run.started_at || !run.finished_at) {
+    return undefined
+  }
+  const assistantIndex = messages.findIndex((message) => message.id === run.assistant_message_id)
+  if (assistantIndex <= messageIndex) {
+    return undefined
+  }
+  for (let index = messageIndex + 1; index < assistantIndex; index += 1) {
+    if (messages[index].role === "user") {
+      return undefined
+    }
+  }
+  const startedAt = Date.parse(run.started_at)
+  const finishedAt = Date.parse(run.finished_at)
+  if (!Number.isFinite(startedAt) || !Number.isFinite(finishedAt)) {
+    return undefined
+  }
+  return Math.max(0, finishedAt - startedAt)
+}
+
+function liveProcessingDurationMs(message: ChatMessage, nowMs: number) {
+  const startedAt = Date.parse(message.created_at)
+  if (!Number.isFinite(startedAt)) {
+    return 0
+  }
+  return Math.max(0, nowMs - startedAt)
 }
 
 function formatProcessingDuration(durationMs: number) {
