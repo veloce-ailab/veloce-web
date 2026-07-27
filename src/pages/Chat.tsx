@@ -4,9 +4,10 @@ import type { ChangeEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNo
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { createPortal } from "react-dom"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { Activity, ArrowDown, ArrowUp, Bot, Check, ChevronDown, ChevronLeft, ChevronRight, Cloud, Copy, FileDiff, FileText, Folder, FolderOpen, FolderPlus, GitBranch, GitCompareArrows, Hand, ListTodo, Loader2, Menu, MessageCircleQuestion, MessageSquarePlus, Monitor, MoreHorizontal, PanelRightClose, PanelRightOpen, Paperclip, Pencil, Plus, Quote, RefreshCw, Search, Send, Server, Settings, ShieldCheck, Sparkles, Trash2, Upload, User, X } from "lucide-react"
+import { Activity, ArrowDown, ArrowUp, Bot, Check, ChevronDown, ChevronLeft, ChevronRight, Cloud, Copy, FileDiff, FileText, Folder, FolderOpen, FolderPlus, GitBranch, GitCompareArrows, Hand, ListTodo, Loader2, Menu, MessageCircleQuestion, MessageSquarePlus, Monitor, MoreHorizontal, PanelRightClose, PanelRightOpen, Paperclip, Pencil, Plus, Quote, RefreshCw, Search, Send, Server, Settings, ShieldCheck, Sparkles, TerminalSquare, Trash2, Upload, User, X } from "lucide-react"
 import api, { apiURL, getAuthToken, isDesktopTarget } from "@/lib/api"
 import { ChatSetupGuide } from "@/components/onboarding/SetupGuides"
+import { ConnectorTerminalWindow, type ConnectorTerminalCopy } from "@/components/chat/ConnectorTerminalWindow"
 import { useI18n, type TranslationKey } from "@/lib/i18n"
 import type { PublicSettings } from "@/lib/public-settings"
 import { withPublicSettingsDefaults } from "@/lib/public-settings"
@@ -621,6 +622,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
   const newSessionGreeting = greetingForHour(language)
   const recentAgentsLabel = language === "zh" ? "最近助理" : language === "ja" ? "最近のアシスタント" : "Recent assistants"
   const gitCopy = useMemo(() => (language === "zh" ? zhGitWorkspaceCopy : enGitWorkspaceCopy), [language])
+  const terminalCopy = useMemo(() => (language === "zh" ? zhConnectorTerminalCopy : enConnectorTerminalCopy), [language])
   const workspacePickerCopy = useMemo(() => (language === "zh" ? zhWorkspacePickerCopy : enWorkspacePickerCopy), [language])
   const taskChangeCopy = useMemo(() => (language === "zh" ? zhTaskChangeCopy : enTaskChangeCopy), [language])
   const sessionSidebarCopy = useMemo(() => (language === "zh" ? zhSessionSidebarCopy : enSessionSidebarCopy), [language])
@@ -695,7 +697,8 @@ export default function Chat({ variant = "basic" }: ChatProps) {
   const [isStreamActive, setIsStreamActive] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
   const [processingSessionID, setProcessingSessionID] = useState("")
-  const [processingNowMs, setProcessingNowMs] = useState(() => Date.now())
+  const [, setProcessingTick] = useState(0)
+  const [terminalWindow, setTerminalWindow] = useState<{ deviceID: string; deviceName: string; deviceOS?: string; workspacePath: string } | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const observedTaskRunStatesRef = useRef<Map<string, { runID: string; status: string }>>(new Map())
   const hasObservedTaskRunStatesRef = useRef(false)
@@ -998,25 +1001,16 @@ export default function Chat({ variant = "basic" }: ChatProps) {
   const isActiveRunRunning = isRunActive(activeRun)
   const activeRunID = activeRun?.id || ""
   const isProcessingLive = Boolean(currentSession) && ((processingSessionID === currentSession?.id && (isSending || isStreamActive)) || isActiveRunRunning)
+  // Ticking a counter re-renders once a second; the elapsed time itself is read
+  // from the clock during render so the first frame is already correct.
   useEffect(() => {
     if (!isProcessingLive) {
       return
     }
-    setProcessingNowMs(Date.now())
-    const timer = window.setInterval(() => setProcessingNowMs(Date.now()), 1000)
+    const timer = window.setInterval(() => setProcessingTick((tick) => tick + 1), 1000)
     return () => window.clearInterval(timer)
   }, [isProcessingLive])
-  const liveProcessingUserMessageIndex = useMemo(() => {
-    if (!isProcessingLive) {
-      return -1
-    }
-    for (let index = currentMessages.length - 1; index >= 0; index -= 1) {
-      if (currentMessages[index].role === "user") {
-        return index
-      }
-    }
-    return -1
-  }, [currentMessages, isProcessingLive])
+  const liveProcessingUserMessageIndex = isProcessingLive ? lastUserMessageIndex(currentMessages) : -1
   const taskChangeMessage = useMemo(() => {
     if (activeRun?.assistant_message_id) {
       const activeMessage = currentMessages.find((message) => message.id === activeRun.assistant_message_id)
@@ -1162,6 +1156,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
     currentConnectorDevice.desktop_instance_id === desktopInstanceID
   )
   const canOpenWorkspaceInVSCode = Boolean(isAdvanced && isCurrentConnectorLocal && currentSession?.connector_workspace_path)
+  const canOpenConnectorTerminal = Boolean(isAdvanced && currentConnectorDevice?.online)
   useEffect(() => {
     if (!isDesktop || typeof window === "undefined" || !window.veloceDesktop?.getDesktopSystemInfo) {
       return
@@ -3785,6 +3780,17 @@ export default function Chat({ variant = "basic" }: ChatProps) {
     <div className={cn("flex min-w-0", isAdvanced && "h-full min-h-0")}>
       {sessionsSidebarPortal}
       {messageSelectionContextMenuPortal}
+      {terminalWindow && (
+        <ConnectorTerminalWindow
+          key={`${terminalWindow.deviceID}:${terminalWindow.workspacePath}`}
+          deviceID={terminalWindow.deviceID}
+          deviceName={terminalWindow.deviceName}
+          deviceOS={terminalWindow.deviceOS}
+          workspacePath={terminalWindow.workspacePath}
+          copy={terminalCopy}
+          onClose={() => setTerminalWindow(null)}
+        />
+      )}
       <Dialog open={Boolean(renamingSession)} onOpenChange={(open) => { if (!open) setRenamingSession(null) }}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>{copy.customTitlePrompt}</DialogTitle></DialogHeader>
@@ -3981,6 +3987,29 @@ export default function Chat({ variant = "basic" }: ChatProps) {
                     )}
                   </div>
 
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-2 h-9 w-full justify-start gap-2"
+                    disabled={!canOpenConnectorTerminal}
+                    title={canOpenConnectorTerminal ? terminalCopy.openTerminal : terminalCopy.deviceRequired}
+                    onClick={() => {
+                      if (!currentConnectorDevice) {
+                        return
+                      }
+                      setIsGitPanelOpen(false)
+                      setTerminalWindow({
+                        deviceID: currentConnectorDevice.id,
+                        deviceName: currentConnectorDevice.name,
+                        deviceOS: currentConnectorDevice.os,
+                        workspacePath: currentSession?.connector_workspace_path || "",
+                      })
+                    }}
+                  >
+                    <TerminalSquare size={15} />
+                    {terminalCopy.openTerminal}
+                  </Button>
+
                   {!canInspectGitWorkspace ? (
                     <div className="py-6 text-center text-sm text-muted-foreground">{gitCopy.noWorkspace}</div>
                   ) : gitStatusQuery.isLoading ? (
@@ -4155,7 +4184,7 @@ export default function Chat({ variant = "basic" }: ChatProps) {
                     {currentSession.messages.map((message, messageIndex) => {
                       const processingDuration = message.role === "user"
                         ? messageIndex === liveProcessingUserMessageIndex
-                          ? liveProcessingDurationMs(message, processingNowMs)
+                          ? liveProcessingDurationMs(message, Date.now())
                           : processingDurationForUserMessage(currentSession.messages, messageIndex, activeRun)
                         : undefined
                       if (message.role === "assistant" && editingMessageID !== message.id) {
@@ -7863,6 +7892,15 @@ function backendRunDurationForUserMessage(messages: ChatMessage[], messageIndex:
   return Math.max(0, finishedAt - startedAt)
 }
 
+function lastUserMessageIndex(messages: ChatMessage[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].role === "user") {
+      return index
+    }
+  }
+  return -1
+}
+
 function liveProcessingDurationMs(message: ChatMessage, nowMs: number) {
   const startedAt = Date.parse(message.created_at)
   if (!Number.isFinite(startedAt)) {
@@ -8841,6 +8879,42 @@ const enConnectorApprovalModeCopy: typeof zhConnectorApprovalModeCopy = {
   fullAccess: "Full access",
   assistant: "Assistant approval",
   agentRequired: "Select an approval assistant in personal settings first.",
+}
+
+const zhConnectorTerminalCopy: ConnectorTerminalCopy & { openTerminal: string; deviceRequired: string } = {
+  openTerminal: "打开终端",
+  deviceRequired: "请先选择一台在线设备。",
+  title: "终端",
+  connecting: "正在连接设备终端…",
+  connectFailed: "无法打开设备终端",
+  disconnected: "终端已断开",
+  inputPlaceholder: "输入命令后回车执行",
+  inputPlaceholderClosed: "终端不可用",
+  maximize: "最大化",
+  restore: "还原",
+  close: "关闭",
+  restart: "重启终端",
+  clear: "清屏",
+  truncatedNotice: "较早的输出已被截断",
+  exitedWithCode: "终端已退出（退出码 {code}）",
+}
+
+const enConnectorTerminalCopy: typeof zhConnectorTerminalCopy = {
+  openTerminal: "Open terminal",
+  deviceRequired: "Select an online device first.",
+  title: "Terminal",
+  connecting: "Connecting to the device terminal…",
+  connectFailed: "Failed to open the device terminal",
+  disconnected: "Terminal disconnected",
+  inputPlaceholder: "Type a command and press Enter",
+  inputPlaceholderClosed: "Terminal unavailable",
+  maximize: "Maximize",
+  restore: "Restore",
+  close: "Close",
+  restart: "Restart terminal",
+  clear: "Clear",
+  truncatedNotice: "Earlier output was truncated",
+  exitedWithCode: "Terminal exited with code {code}",
 }
 
 const zhGitWorkspaceCopy = {
