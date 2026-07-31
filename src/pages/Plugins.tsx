@@ -1,7 +1,7 @@
 import { useRef } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
-import { PackageOpen, Power, Settings, Trash2, Upload } from "lucide-react"
+import { Download, ExternalLink, PackageOpen, Power, Settings, Store, Trash2, Upload } from "lucide-react"
 import api from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,6 +32,18 @@ interface PluginListResponse {
   plugins?: unknown[]
 }
 
+interface PluginMarketItem {
+  id: string
+  title: string
+  repository_url: string
+  description: string
+  author: string
+  author_level: number
+  categories: { id: string; name: string }[]
+}
+
+interface PluginMarketResponse { items?: PluginMarketItem[] }
+
 const pluginsQueryKey = ["plugins"] as const
 
 export default function Plugins() {
@@ -45,6 +57,13 @@ export default function Plugins() {
     queryFn: async () => {
       const res = await api.get<PluginListResponse>("/user/plugins")
       return Array.isArray(res.data?.plugins) ? res.data.plugins.map(normalizePlugin).filter((item): item is PluginItem => Boolean(item)) : []
+    },
+  })
+  const { data: marketItems = [], isFetching: marketLoading } = useQuery<PluginMarketItem[]>({
+    queryKey: ["plugin-market"],
+    queryFn: async () => {
+      const res = await api.get<PluginMarketResponse>("/user/plugins/market")
+      return Array.isArray(res.data?.items) ? res.data.items : []
     },
   })
 
@@ -81,6 +100,14 @@ export default function Plugins() {
     },
     onError: (err) => error(apiErrorMessage(err, "插件卸载失败")),
   })
+  const installFromMarket = useMutation({
+    mutationFn: async (item: PluginMarketItem) => api.post(`/user/plugins/market/${encodeURIComponent(item.id)}/install`),
+    onSuccess: async () => {
+      success("插件已从市场安装")
+      await queryClient.invalidateQueries({ queryKey: pluginsQueryKey })
+    },
+    onError: (err) => error(apiErrorMessage(err, "插件市场安装失败")),
+  })
 
   const handleUpload = (file: File | undefined) => {
     if (!file) return
@@ -106,6 +133,30 @@ export default function Plugins() {
           </Button>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><Store size={16} />插件市场</CardTitle>
+          <p className="text-sm text-muted-foreground">浏览社区审核通过的插件；安装时会下载其 GitHub 最新 Release 并校验 WASM 清单。</p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {!marketLoading && marketItems.length === 0 ? (
+            <div className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">社区暂时没有可安装插件</div>
+          ) : marketItems.map((item) => (
+            <div key={item.id} className="flex flex-col gap-4 rounded-md border p-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 space-y-2">
+                <div className="flex flex-wrap items-center gap-2"><PackageOpen className="size-4 text-muted-foreground" /><span className="font-medium">{item.title}</span>{item.categories.map((category) => <span key={category.id} className="rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{category.name}</span>)}</div>
+                <p className="text-sm text-muted-foreground">{item.description || "没有描述"}</p>
+                <div className="text-xs text-muted-foreground">{item.author}{item.author_level ? ` · Lv.${item.author_level}` : ""}</div>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Button asChild variant="outline" size="sm" className="gap-2"><a href={item.repository_url} target="_blank" rel="noreferrer"><ExternalLink size={14} />仓库</a></Button>
+                <Button size="sm" className="gap-2" disabled={installFromMarket.isPending} onClick={() => installFromMarket.mutate(item)}><Download size={14} />{installFromMarket.isPending ? "安装中" : "安装最新版本"}</Button>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle className="text-base">已安装插件</CardTitle></CardHeader>
