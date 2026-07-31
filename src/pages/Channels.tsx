@@ -38,6 +38,9 @@ interface UserChannel {
   multiplier: string | number
   routing_algorithm: string
   enabled: boolean
+  rate_limit_enabled: boolean
+  rate_limit_requests_per_minute: number
+  rate_limit_burst: number
   allowed_groups?: Array<{ id: number; group_id: number; group?: Group }>
   allowed_users?: Array<{ id: number; user_id: number; user?: AdminUserOption }>
 }
@@ -387,6 +390,7 @@ export default function Channels() {
                 <TableHead>{t("admin.description")}</TableHead>
                 <TableHead>{t("channels.multiplier")}</TableHead>
                 <TableHead>{copy.routingAlgorithm}</TableHead>
+                <TableHead>{copy.rateLimit}</TableHead>
                 <TableHead>{copy.requests}</TableHead>
                 <TableHead>{copy.tokens}</TableHead>
                 <TableHead>{copy.cost}</TableHead>
@@ -396,9 +400,9 @@ export default function Channels() {
             </TableHeader>
             <TableBody>
               {isUserChannelsLoading ? (
-                <EmptyRow colSpan={9} text={t("common.loading")} />
+                <EmptyRow colSpan={10} text={t("common.loading")} />
               ) : userChannels.length === 0 ? (
-                <EmptyRow colSpan={9} text={t("admin.noUserChannels")} />
+                <EmptyRow colSpan={10} text={t("admin.noUserChannels")} />
               ) : (
                 userChannels.map((channel) => (
                   <TableRow key={channel.id}>
@@ -415,6 +419,7 @@ export default function Channels() {
                     <TableCell>{channel.description || "-"}</TableCell>
                     <TableCell>{channel.multiplier || 1}</TableCell>
                     <TableCell>{routingAlgorithmLabel(channel.routing_algorithm, copy)}</TableCell>
+                    <TableCell>{channel.rate_limit_enabled ? copy.rateLimitValue.replace("{rpm}", String(channel.rate_limit_requests_per_minute || 0)).replace("{burst}", String(channel.rate_limit_burst || 0)) : copy.rateLimitDisabled}</TableCell>
                     <TableCell>{formatInteger(usageForUserChannel(channelUsage, channel.id).request_count)}</TableCell>
                     <TableCell>{formatInteger(usageForUserChannel(channelUsage, channel.id).total_tokens)}</TableCell>
                     <TableCell>{formatCost(usageForUserChannel(channelUsage, channel.id).total_cost, currency)}</TableCell>
@@ -619,6 +624,21 @@ function UserChannelDialog({
               ))}
             </SelectContent></Select>
           </FieldLabel>
+          <div className="space-y-3 rounded-md border p-3">
+            <label className="flex items-center gap-2 text-sm">
+              <Switch checked={Boolean(draft.rate_limit_enabled)} onCheckedChange={(checked) => setDraft({ ...draft, rate_limit_enabled: checked })} />
+              <span className="font-medium">{copy.enableRateLimit}</span>
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FieldLabel label={copy.requestsPerMinute}>
+                <Input type="number" min="1" max="1000000" disabled={!draft.rate_limit_enabled} value={String(draft.rate_limit_requests_per_minute ?? 60)} onChange={(e) => setDraft({ ...draft, rate_limit_requests_per_minute: Number(e.target.value) })} />
+              </FieldLabel>
+              <FieldLabel label={copy.rateLimitBurst}>
+                <Input type="number" min="0" max="1000000" disabled={!draft.rate_limit_enabled} value={String(draft.rate_limit_burst ?? 0)} onChange={(e) => setDraft({ ...draft, rate_limit_burst: Number(e.target.value) })} />
+              </FieldLabel>
+            </div>
+            <p className="text-xs text-muted-foreground">{copy.rateLimitHint}</p>
+          </div>
           <label className="flex items-center gap-2 text-sm">
             <Switch checked={Boolean(draft.enabled)} onCheckedChange={(checked) => setDraft({ ...draft, enabled: checked })} />
             {t("common.enabled")}
@@ -1618,7 +1638,7 @@ function pluginUpstreamConfigOptions(field: PluginUpstreamConfigField, settings:
 }
 
 function emptyUserChannel(): Partial<UserChannel> {
-  return { name: "", description: "", multiplier: 1, routing_algorithm: "priority", enabled: true }
+  return { name: "", description: "", multiplier: 1, routing_algorithm: "priority", enabled: true, rate_limit_enabled: false, rate_limit_requests_per_minute: 60, rate_limit_burst: 0 }
 }
 
 function userChannelPayload(channel: Partial<UserChannel>) {
@@ -1628,6 +1648,9 @@ function userChannelPayload(channel: Partial<UserChannel>) {
     multiplier: Number(channel.multiplier ?? 1),
     routing_algorithm: channel.routing_algorithm || "priority",
     enabled: channel.enabled ?? true,
+    rate_limit_enabled: channel.rate_limit_enabled ?? false,
+    rate_limit_requests_per_minute: Number(channel.rate_limit_requests_per_minute ?? 60),
+    rate_limit_burst: Number(channel.rate_limit_burst ?? 0),
   }
 }
 
@@ -2195,6 +2218,13 @@ const zhChannelCopy = {
   priceSyncEnabled: "自动同步价格",
   priceSyncCron: "同步 Cron",
   priceSyncCronHint: "使用五段 Cron 表达式，例如“0 * * * *”表示每小时整点同步；关闭后不会自动同步。",
+  rateLimit: "限速",
+  rateLimitDisabled: "未启用",
+  rateLimitValue: "{rpm}/分钟，突发 {burst}",
+  enableRateLimit: "启用渠道限速",
+  requestsPerMinute: "每分钟请求数",
+  rateLimitBurst: "突发额度",
+  rateLimitHint: "每位用户在此渠道都有独立限额；达到上限时 API 返回 429 和 Retry-After。",
 }
 
 const enChannelCopy: typeof zhChannelCopy = {
@@ -2260,4 +2290,11 @@ const enChannelCopy: typeof zhChannelCopy = {
   priceSyncEnabled: "Automatically sync prices",
   priceSyncCron: "Sync cron",
   priceSyncCronHint: "Use a five-field cron expression. For example, “0 * * * *” syncs on the hour; disabled channels are not synced automatically.",
+  rateLimit: "Rate limit",
+  rateLimitDisabled: "Disabled",
+  rateLimitValue: "{rpm}/min, burst {burst}",
+  enableRateLimit: "Enable channel rate limit",
+  requestsPerMinute: "Requests per minute",
+  rateLimitBurst: "Burst allowance",
+  rateLimitHint: "Each user has an independent limit for this channel. Rejected API calls return 429 with Retry-After.",
 }
