@@ -55,6 +55,7 @@ const minWidth = 420
 const minHeight = 260
 const defaultWidth = 720
 const defaultHeight = 420
+const terminalInputBatchDelay = 12
 
 export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, workspacePath, copy, onClose }: ConnectorTerminalWindowProps) {
   const [position, setPosition] = useState(() => initialPosition())
@@ -74,6 +75,8 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
   const inputDisposableRef = useRef<IDisposable | null>(null)
   const terminalIDRef = useRef("")
   const inputQueueRef = useRef(Promise.resolve())
+  const inputBufferRef = useRef("")
+  const inputTimerRef = useRef<number | null>(null)
   const terminalSizeRef = useRef("")
   const statusRef = useRef<TerminalStatus>("connecting")
   const resizeTimerRef = useRef<number | null>(null)
@@ -118,20 +121,32 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
   }, [status])
 
   const sendInput = useCallback((data: string) => {
-    const id = terminalIDRef.current
-    if (!id || statusRef.current !== "ready" || !data) {
+    if (statusRef.current !== "ready" || !data) {
       return
     }
-    const encoded = bytesToBase64(new TextEncoder().encode(data))
-    inputQueueRef.current = inputQueueRef.current.then(async () => {
-      await api.post("/user/advanced-chat/terminal/input", {
-        connector_device_id: deviceID,
-        terminal_id: id,
-        data: encoded,
+    inputBufferRef.current += data
+    if (inputTimerRef.current !== null) {
+      return
+    }
+    inputTimerRef.current = window.setTimeout(() => {
+      inputTimerRef.current = null
+      const pending = inputBufferRef.current
+      inputBufferRef.current = ""
+      const id = terminalIDRef.current
+      if (!id || statusRef.current !== "ready" || !pending) {
+        return
+      }
+      const encoded = bytesToBase64(new TextEncoder().encode(pending))
+      inputQueueRef.current = inputQueueRef.current.then(async () => {
+        await api.post("/user/advanced-chat/terminal/input", {
+          connector_device_id: deviceID,
+          terminal_id: id,
+          data: encoded,
+        })
+      }).catch((err) => {
+        writeTerminal(newline("[" + errorMessage(err, copy.disconnected) + "]"))
       })
-    }).catch((err) => {
-      writeTerminal(newline("[" + errorMessage(err, copy.disconnected) + "]"))
-    })
+    }, terminalInputBatchDelay)
   }, [copy.disconnected, deviceID, writeTerminal])
 
   useEffect(() => {
@@ -178,6 +193,11 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
     window.requestAnimationFrame(() => currentTerminalDimensions())
     inputDisposableRef.current = terminal.onData((data) => sendInput(data))
     return () => {
+      if (inputTimerRef.current !== null) {
+        window.clearTimeout(inputTimerRef.current)
+        inputTimerRef.current = null
+      }
+      inputBufferRef.current = ""
       inputDisposableRef.current?.dispose()
       inputDisposableRef.current = null
       fitAddon.dispose()
