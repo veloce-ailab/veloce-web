@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react"
+import type { ClipboardEvent as ReactClipboardEvent, DragEvent as ReactDragEvent, FormEvent as ReactFormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react"
 import { createPortal } from "react-dom"
 import { Maximize2, Minimize2, RefreshCw, TerminalSquare, X } from "lucide-react"
 import api from "@/lib/api"
@@ -53,7 +53,6 @@ const minHeight = 260
 const defaultWidth = 720
 const defaultHeight = 420
 const maxTranscriptChars = 200_000
-const historyLimit = 100
 
 export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, workspacePath, copy, onClose }: ConnectorTerminalWindowProps) {
   const [position, setPosition] = useState(() => initialPosition())
@@ -62,18 +61,19 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
   const [sessionSeq, setSessionSeq] = useState(0)
   const [terminalID, setTerminalID] = useState("")
   const [shell, setShell] = useState("")
-  const [cwd, setCwd] = useState(workspacePath || "")
   const [transcript, setTranscript] = useState("")
   const [status, setStatus] = useState<TerminalStatus>("connecting")
   const [statusDetail, setStatusDetail] = useState("")
-  const [command, setCommand] = useState("")
-  const [historyIndex, setHistoryIndex] = useState(-1)
 
   const offsetRef = useRef(0)
-  const historyRef = useRef<string[]>([])
   const outputRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const frameRef = useRef<HTMLDivElement | null>(null)
   const terminalIDRef = useRef("")
+  const inputQueueRef = useRef(Promise.resolve())
+  const outputDecoderRef = useRef(new TextDecoder())
+  const terminalSizeRef = useRef("")
+  const resizeTimerRef = useRef<number | null>(null)
   const dragStateRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null)
 
   const appendTranscript = useCallback((text: string) => {
@@ -97,10 +97,15 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
       setStatus("connecting")
       setStatusDetail("")
       offsetRef.current = 0
+      outputDecoderRef.current = new TextDecoder()
+      terminalSizeRef.current = ""
       try {
+        const initialSize = terminalDimensions(defaultWidth, defaultHeight)
         const res = await api.post("/user/advanced-chat/terminal/open", {
           connector_device_id: deviceID,
           connector_workspace_path: workspacePath || "",
+          cols: initialSize.cols,
+          rows: initialSize.rows,
         })
         const payload = (res.data || {}) as TerminalOpenResponse
         const id = typeof payload.terminal_id === "string" ? payload.terminal_id : ""
@@ -115,7 +120,6 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
         terminalIDRef.current = id
         setTerminalID(id)
         setShell(typeof payload.shell === "string" ? payload.shell : "")
-        setCwd(typeof payload.cwd === "string" && payload.cwd ? payload.cwd : workspacePath || "")
         setStatus("ready")
       } catch (err) {
         if (!cancelled) {
@@ -156,12 +160,13 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
             appendTranscript(newline(`[${copy.truncatedNotice}]`))
           }
           if (typeof payload.data === "string") {
-            appendTranscript(payload.data)
+            appendTranscript(outputDecoderRef.current.decode(base64ToBytes(payload.data), { stream: true }))
           }
           if (typeof payload.offset === "number") {
             offsetRef.current = payload.offset
           }
           if (payload.alive === false) {
+            appendTranscript(outputDecoderRef.current.decode())
             const detail = typeof payload.exit_message === "string" && payload.exit_message ? payload.exit_message : ""
             const code = typeof payload.exit_code === "number" ? payload.exit_code : undefined
             setStatus("exited")
@@ -184,6 +189,50 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
     }
   }, [appendTranscript, copy.disconnected, copy.exitedWithCode, copy.truncatedNotice, deviceID, status, terminalID])
 
+  // Keep the remote pseudo terminal aligned with the visible window. Its size
+  // determines line wrapping and full-screen programs such as vim or top.
+  useEffect(() => {
+    if (!terminalID || status !== "ready") {
+      return
+    }
+    const syncSize = () => {
+      const frame = frameRef.current
+      if (!frame) {
+        return
+      }
+      const bounds = frame.getBoundingClientRect()
+      const { cols, rows } = terminalDimensions(bounds.width, bounds.height)
+      const signature = `${terminalID}:${cols}:${rows}`
+      if (terminalSizeRef.current === signature) {
+        return
+      }
+      terminalSizeRef.current = signature
+      void api.post("/user/advanced-chat/terminal/resize", {
+        connector_device_id: deviceID,
+        terminal_id: terminalID,
+        cols,
+        rows,
+      }).catch(() => {
+        // A resize failure does not invalidate the terminal session.
+      })
+    }
+    const scheduleSync = () => {
+      if (resizeTimerRef.current !== null) {
+        window.clearTimeout(resizeTimerRef.current)
+      }
+      resizeTimerRef.current = window.setTimeout(syncSize, 80)
+    }
+    scheduleSync()
+    window.addEventListener("resize", scheduleSync)
+    return () => {
+      window.removeEventListener("resize", scheduleSync)
+      if (resizeTimerRef.current !== null) {
+        window.clearTimeout(resizeTimerRef.current)
+        resizeTimerRef.current = null
+      }
+    }
+  }, [deviceID, isMaximized, size.height, size.width, status, terminalID])
+
   useEffect(() => {
     const element = outputRef.current
     if (element) {
@@ -191,70 +240,74 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
     }
   }, [transcript])
 
-  const sendInput = useCallback(async (data: string) => {
-    if (!terminalID || status !== "ready") {
+  const sendInput = useCallback((data: string) => {
+    if (!terminalID || status !== "ready" || !data) {
       return
     }
-    try {
+    const encoded = bytesToBase64(new TextEncoder().encode(data))
+    inputQueueRef.current = inputQueueRef.current.then(async () => {
       await api.post("/user/advanced-chat/terminal/input", {
         connector_device_id: deviceID,
         terminal_id: terminalID,
-        data,
+        data: encoded,
       })
-    } catch (err) {
+    }).catch((err) => {
       appendTranscript(newline(`[${errorMessage(err, copy.disconnected)}]`))
-    }
+    })
   }, [appendTranscript, copy.disconnected, deviceID, status, terminalID])
-
-  const submitCommand = () => {
-    if (status !== "ready") {
-      return
-    }
-    const text = command
-    setCommand("")
-    setHistoryIndex(-1)
-    if (text.trim()) {
-      historyRef.current = [text, ...historyRef.current.filter((item) => item !== text)].slice(0, historyLimit)
-    }
-    // Local echo: the shell runs without a tty, so it never echoes input back.
-    appendTranscript(`${promptLabel(cwd, shell)}${text}${lineBreak}`)
-    void sendInput(`${text}${lineBreak}`)
-  }
 
   const restartSession = () => {
     setTranscript("")
-    setCommand("")
-    setHistoryIndex(-1)
     setTerminalID("")
     setSessionSeq((seq) => seq + 1)
   }
 
   const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-      event.preventDefault()
-      submitCommand()
+    if (event.nativeEvent.isComposing) {
       return
     }
-    if (event.key === "ArrowUp") {
-      event.preventDefault()
-      const next = Math.min(historyIndex + 1, historyRef.current.length - 1)
-      if (next >= 0) {
-        setHistoryIndex(next)
-        setCommand(historyRef.current[next] || "")
-      }
+    const data = terminalKeyData(event)
+    if (data === null) {
       return
     }
-    if (event.key === "ArrowDown") {
-      event.preventDefault()
-      const next = historyIndex - 1
-      setHistoryIndex(next)
-      setCommand(next < 0 ? "" : historyRef.current[next] || "")
+    event.preventDefault()
+    sendInput(data)
+  }
+
+  const handleInputPaste = (event: ReactClipboardEvent<HTMLInputElement>) => {
+    const text = event.clipboardData.getData("text")
+    if (!text) {
+      return
+    }
+    event.preventDefault()
+    sendInput(text)
+  }
+
+  const handleInputBeforeInput = (event: ReactFormEvent<HTMLInputElement>) => {
+    const nativeEvent = event.nativeEvent as InputEvent
+    if (nativeEvent.inputType !== "insertText" || !nativeEvent.data) {
+      return
+    }
+    event.preventDefault()
+    sendInput(nativeEvent.data)
+  }
+
+  const handleInputChange = () => {
+    if (inputRef.current) {
+      inputRef.current.value = ""
     }
   }
 
+  const handleInputDrop = (event: ReactDragEvent<HTMLInputElement>) => {
+    const text = event.dataTransfer.getData("text")
+    if (!text) {
+      return
+    }
+    event.preventDefault()
+    sendInput(text)
+  }
+
   const handleDragStart = (event: ReactPointerEvent<HTMLDivElement>) => {
-    // Capturing the pointer on the title bar would retarget pointerup away from
-    // the title bar buttons and swallow their clicks, so ignore those presses.
     if (isMaximized || event.button !== 0 || (event.target as HTMLElement | null)?.closest("button")) {
       return
     }
@@ -310,13 +363,8 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
   }
 
   return createPortal(
-    // A non-modal overlay: the wrapper never takes pointer events, so the chat
-    // behind it stays fully usable while the terminal is open.
     <div className="pointer-events-none fixed inset-0 z-[80]" role="dialog" aria-modal={false} aria-label={`${copy.title} · ${deviceName}`}>
-      <div
-        className="pointer-events-auto absolute flex flex-col overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-2xl"
-        style={frameStyle}
-      >
+      <div ref={frameRef} className="pointer-events-auto absolute flex flex-col overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-2xl" style={frameStyle}>
         <div
           className={cn("flex h-10 shrink-0 items-center gap-2 border-b border-border/80 bg-muted/60 px-3", !isMaximized && "cursor-move")}
           onPointerDown={handleDragStart}
@@ -324,10 +372,9 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
           onPointerUp={handleDragEnd}
           onPointerCancel={handleDragEnd}
           onDoubleClick={(event) => {
-            if ((event.target as HTMLElement | null)?.closest("button")) {
-              return
+            if (!(event.target as HTMLElement | null)?.closest("button")) {
+              setIsMaximized((maximized) => !maximized)
             }
-            setIsMaximized((maximized) => !maximized)
           }}
         >
           <TerminalSquare size={15} className="shrink-0 text-muted-foreground" />
@@ -336,63 +383,38 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
             {shell && <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{shell}</span>}
             {deviceOS && <span className="shrink-0 text-[11px] text-muted-foreground">{deviceOS}</span>}
           </div>
-          <button
-            type="button"
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-            onClick={restartSession}
-            aria-label={copy.restart}
-            title={copy.restart}
-          >
+          <button type="button" className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground" onClick={restartSession} aria-label={copy.restart} title={copy.restart}>
             <RefreshCw size={13} className={status === "connecting" ? "animate-spin" : ""} />
           </button>
-          <button
-            type="button"
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-            onClick={() => setIsMaximized((maximized) => !maximized)}
-            aria-label={isMaximized ? copy.restore : copy.maximize}
-            title={isMaximized ? copy.restore : copy.maximize}
-          >
+          <button type="button" className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => setIsMaximized((maximized) => !maximized)} aria-label={isMaximized ? copy.restore : copy.maximize} title={isMaximized ? copy.restore : copy.maximize}>
             {isMaximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
           </button>
-          <button
-            type="button"
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            onClick={onClose}
-            aria-label={copy.close}
-            title={copy.close}
-          >
+          <button type="button" className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={onClose} aria-label={copy.close} title={copy.close}>
             <X size={14} />
           </button>
         </div>
 
-        <div
-          ref={outputRef}
-          className="min-h-0 flex-1 overflow-auto bg-background px-3 py-2 font-mono text-xs leading-relaxed"
-          onClick={() => inputRef.current?.focus()}
-        >
+        <div ref={outputRef} className="min-h-0 flex-1 overflow-auto bg-background px-3 py-2 font-mono text-xs leading-relaxed" onClick={() => inputRef.current?.focus()}>
           <pre className="whitespace-pre-wrap break-words text-foreground">{transcript}</pre>
           {statusText && <div className={cn("mt-1", status === "error" ? "text-destructive" : "text-muted-foreground")}>{statusText}</div>}
         </div>
 
         <div className="flex shrink-0 items-center gap-2 border-t border-border/80 bg-muted/40 px-3 py-2">
-          <span className="shrink-0 font-mono text-xs text-muted-foreground">{promptSymbol(shell)}</span>
           <input
             ref={inputRef}
+            aria-label={copy.title}
             className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
-            value={command}
             disabled={status !== "ready"}
             placeholder={status === "ready" ? copy.inputPlaceholder : copy.inputPlaceholderClosed}
             spellCheck={false}
             autoComplete="off"
-            onChange={(event) => setCommand(event.target.value)}
+            onBeforeInput={handleInputBeforeInput}
+            onChange={handleInputChange}
+            onDrop={handleInputDrop}
             onKeyDown={handleInputKeyDown}
+            onPaste={handleInputPaste}
           />
-          <button
-            type="button"
-            className="shrink-0 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
-            onClick={() => setTranscript("")}
-            title={copy.clear}
-          >
+          <button type="button" className="shrink-0 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => setTranscript("")} title={copy.clear}>
             {copy.clear}
           </button>
         </div>
@@ -441,6 +463,69 @@ function ResizeHandle({ onResize }: { onResize: (deltaX: number, deltaY: number)
   )
 }
 
+function terminalKeyData(event: ReactKeyboardEvent<HTMLInputElement>): string | null {
+  if (event.metaKey) {
+    return null
+  }
+  const special: Record<string, string> = {
+    Enter: "\r",
+    Backspace: "\x7f",
+    Tab: "\t",
+    Escape: "\x1b",
+    ArrowUp: "\x1b[A",
+    ArrowDown: "\x1b[B",
+    ArrowRight: "\x1b[C",
+    ArrowLeft: "\x1b[D",
+    Home: "\x1b[H",
+    End: "\x1b[F",
+    Insert: "\x1b[2~",
+    Delete: "\x1b[3~",
+    PageUp: "\x1b[5~",
+    PageDown: "\x1b[6~",
+  }
+  if (special[event.key]) {
+    return special[event.key]
+  }
+  if (event.ctrlKey && event.key.length === 1) {
+    if (!event.altKey && event.key.toLowerCase() === "v") {
+      return null
+    }
+    const code = event.key.toUpperCase().charCodeAt(0)
+    if (code >= 64 && code <= 95) {
+      return String.fromCharCode(code - 64)
+    }
+    return null
+  }
+  if (event.key.length !== 1 || event.ctrlKey) {
+    return null
+  }
+  return event.altKey ? `\x1b${event.key}` : event.key
+}
+
+function terminalDimensions(width: number, height: number) {
+  return {
+    cols: Math.max(20, Math.min(500, Math.floor((width - 24) / 8.4))),
+    rows: Math.max(5, Math.min(200, Math.floor((height - 82) / 17))),
+  }
+}
+
+function base64ToBytes(encoded: string) {
+  const binary = window.atob(encoded)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+  return bytes
+}
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = ""
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte)
+  }
+  return window.btoa(binary)
+}
+
 const lineBreak = String.fromCharCode(10)
 
 function newline(text: string) {
@@ -458,8 +543,6 @@ function initialPosition() {
   )
 }
 
-// Keeps part of the title bar on screen so a window dragged to an edge can
-// always be grabbed again.
 function clampPosition(x: number, y: number, width: number) {
   if (typeof window === "undefined") {
     return { x, y }
@@ -468,15 +551,6 @@ function clampPosition(x: number, y: number, width: number) {
     x: Math.max(120 - width, Math.min(x, window.innerWidth - 120)),
     y: Math.max(0, Math.min(y, window.innerHeight - 48)),
   }
-}
-
-function promptSymbol(shell: string) {
-  return shell.toLowerCase().startsWith("cmd") ? ">" : "$"
-}
-
-function promptLabel(cwd: string, shell: string) {
-  const symbol = promptSymbol(shell)
-  return cwd ? `${cwd}${symbol} ` : `${symbol} `
 }
 
 function errorMessage(err: unknown, fallback: string) {
