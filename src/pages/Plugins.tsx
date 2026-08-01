@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import { Download, ExternalLink, PackageOpen, Power, RefreshCw, Settings, Store, Trash2, Upload } from "lucide-react"
@@ -53,6 +53,18 @@ interface PluginUpdateStatus {
   error?: string
 }
 
+interface PluginUpdateProgress {
+  plugin_id: string
+  current_version?: string
+  latest_version?: string
+  in_progress: boolean
+  phase: string
+  progress: number
+  downloaded_bytes?: number
+  total_bytes?: number
+  error?: string
+}
+
 const pluginsQueryKey = ["plugins"] as const
 
 export default function Plugins() {
@@ -76,6 +88,7 @@ export default function Plugins() {
     },
   })
   const [updates, setUpdates] = useState<Record<string, PluginUpdateStatus>>({})
+  const [updateProgress, setUpdateProgress] = useState<Record<string, PluginUpdateProgress>>({})
 
   const uploadPlugin = useMutation({
     mutationFn: async (file: File) => {
@@ -128,6 +141,27 @@ export default function Plugins() {
     },
     onError: (err) => error(apiErrorMessage(err, "插件更新检查失败")),
   })
+  const updatePlugin = useMutation({
+    mutationFn: async (plugin: PluginItem) => (await api.post<PluginUpdateProgress>(`/user/plugins/${encodeURIComponent(plugin.id)}/update`)).data,
+    onSuccess: (progress) => {
+      setUpdateProgress((current) => ({ ...current, [progress.plugin_id]: progress }))
+      success("插件更新已开始")
+    },
+    onError: (err) => error(apiErrorMessage(err, "插件更新启动失败")),
+  })
+  const updatingIDs = Object.values(updateProgress).filter((item) => item.in_progress).map((item) => item.plugin_id).join(",")
+  useEffect(() => {
+    const ids = Object.values(updateProgress).filter((item) => item.in_progress).map((item) => item.plugin_id)
+    if (!ids.length) return
+    const poll = async () => {
+      const results = await Promise.all(ids.map(async (id) => ({ id, progress: (await api.get<PluginUpdateProgress>(`/user/plugins/${encodeURIComponent(id)}/update/progress`)).data })))
+      setUpdateProgress((current) => ({ ...current, ...Object.fromEntries(results.map(({ id, progress }) => [id, progress])) }))
+      if (results.some(({ progress }) => !progress.in_progress)) await queryClient.invalidateQueries({ queryKey: pluginsQueryKey })
+    }
+    void poll()
+    const timer = window.setInterval(() => void poll(), 1000)
+    return () => window.clearInterval(timer)
+  }, [updatingIDs, queryClient])
 
   const handleUpload = (file: File | undefined) => {
     if (!file) return
@@ -201,12 +235,14 @@ export default function Plugins() {
                   <div className="text-xs text-muted-foreground">{plugin.id}{plugin.author ? ` · ${plugin.author}` : ""}</div>
                   {plugin.github && <a className="inline-flex items-center gap-1 text-xs text-primary hover:underline" href={plugin.github} target="_blank" rel="noreferrer"><ExternalLink size={12} />GitHub</a>}
                   {updates[plugin.id] && <PluginUpdateNotice update={updates[plugin.id]} />}
+                  {updateProgress[plugin.id] && <PluginUpdateProgressBar progress={updateProgress[plugin.id]} />}
                   {plugin.last_error && <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{plugin.last_error}</div>}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" className="gap-2" disabled={togglePlugin.isPending} onClick={() => togglePlugin.mutate(plugin)}>
                     <Power size={14} />{plugin.enabled ? "禁用" : "启用"}
                   </Button>
+                  {updates[plugin.id]?.update_available && <Button size="sm" className="gap-2" disabled={updatePlugin.isPending || updateProgress[plugin.id]?.in_progress} onClick={() => updatePlugin.mutate(plugin)}><Download size={14} />更新</Button>}
                   <Button asChild variant="outline" size="sm" className="gap-2" disabled={!plugin.enabled}>
                     <Link to={`/dashboard/plugins/${encodeURIComponent(plugin.id)}/settings`}><Settings size={14} />设置</Link>
                   </Button>
@@ -247,6 +283,12 @@ function PluginUpdateNotice({ update }: { update: PluginUpdateStatus }) {
   if (update.update_available) return <div className="text-xs text-amber-600 dark:text-amber-400">发现新版本：{update.latest_version}（当前 {update.current_version}）</div>
   if (update.error) return <div className="text-xs text-muted-foreground">更新检查：{update.error}</div>
   return <div className="text-xs text-emerald-600 dark:text-emerald-400">已是最新版本{update.latest_version ? `（${update.latest_version}）` : ""}</div>
+}
+
+function PluginUpdateProgressBar({ progress }: { progress: PluginUpdateProgress }) {
+  const value = Math.max(0, Math.min(100, progress.progress || 0))
+  const phase = progress.phase === "checking" ? "正在检查版本" : progress.phase === "downloading" ? "正在下载更新" : progress.phase === "installing" ? "正在安装更新" : progress.phase === "completed" ? "更新完成" : progress.phase === "failed" ? "更新失败" : "等待更新"
+  return <div className="max-w-md space-y-1"><div className="flex justify-between text-xs text-muted-foreground"><span>{progress.error || phase}</span><span>{progress.in_progress ? `${value}%` : progress.phase === "completed" ? "100%" : ""}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full transition-[width] ${progress.phase === "failed" ? "bg-destructive" : "bg-primary"}`} style={{ width: `${progress.phase === "completed" ? 100 : value}%` }} /></div></div>
 }
 
 function normalizeHook(value: unknown): PluginHook | null {
