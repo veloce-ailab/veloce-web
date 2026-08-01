@@ -1,7 +1,7 @@
-import { useRef } from "react"
+import { useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
-import { Download, ExternalLink, PackageOpen, Power, Settings, Store, Trash2, Upload } from "lucide-react"
+import { Download, ExternalLink, PackageOpen, Power, RefreshCw, Settings, Store, Trash2, Upload } from "lucide-react"
 import api from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,6 +21,7 @@ interface PluginItem {
   version: string
   description: string
   author: string
+  github?: string
   enabled: boolean
   permissions: string[]
   hooks: PluginHook[]
@@ -44,6 +45,14 @@ interface PluginMarketItem {
 
 interface PluginMarketResponse { items?: PluginMarketItem[] }
 
+interface PluginUpdateStatus {
+  id: string
+  current_version: string
+  latest_version?: string
+  update_available: boolean
+  error?: string
+}
+
 const pluginsQueryKey = ["plugins"] as const
 
 export default function Plugins() {
@@ -66,6 +75,7 @@ export default function Plugins() {
       return Array.isArray(res.data?.items) ? res.data.items : []
     },
   })
+  const [updates, setUpdates] = useState<Record<string, PluginUpdateStatus>>({})
 
   const uploadPlugin = useMutation({
     mutationFn: async (file: File) => {
@@ -108,6 +118,16 @@ export default function Plugins() {
     },
     onError: (err) => error(apiErrorMessage(err, "插件市场安装失败")),
   })
+  const checkUpdates = useMutation({
+    mutationFn: async () => (await api.get<{ items?: PluginUpdateStatus[] }>("/user/plugins/updates")).data,
+    onSuccess: (data) => {
+      const next: Record<string, PluginUpdateStatus> = {}
+      for (const item of Array.isArray(data.items) ? data.items : []) next[item.id] = item
+      setUpdates(next)
+      success("插件更新检查完成")
+    },
+    onError: (err) => error(apiErrorMessage(err, "插件更新检查失败")),
+  })
 
   const handleUpload = (file: File | undefined) => {
     if (!file) return
@@ -125,7 +145,11 @@ export default function Plugins() {
           <h1 className="text-3xl font-bold">{t("nav.plugins")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">上传 WASM 插件，管理插件状态并进入各插件的独立配置页。</p>
         </div>
-        <div>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" disabled={checkUpdates.isPending} onClick={() => checkUpdates.mutate()}>
+            <RefreshCw size={16} className={checkUpdates.isPending ? "animate-spin" : ""} />
+            {checkUpdates.isPending ? "检查中" : "检查更新"}
+          </Button>
           <input ref={fileInputRef} type="file" accept=".wasm,application/wasm" className="hidden" onChange={(event) => handleUpload(event.target.files?.[0])} />
           <Button className="gap-2" disabled={uploadPlugin.isPending} onClick={() => fileInputRef.current?.click()}>
             <Upload size={16} />
@@ -175,6 +199,8 @@ export default function Plugins() {
                   </div>
                   {plugin.description && <p className="text-sm text-muted-foreground">{plugin.description}</p>}
                   <div className="text-xs text-muted-foreground">{plugin.id}{plugin.author ? ` · ${plugin.author}` : ""}</div>
+                  {plugin.github && <a className="inline-flex items-center gap-1 text-xs text-primary hover:underline" href={plugin.github} target="_blank" rel="noreferrer"><ExternalLink size={12} />GitHub</a>}
+                  {updates[plugin.id] && <PluginUpdateNotice update={updates[plugin.id]} />}
                   {plugin.last_error && <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{plugin.last_error}</div>}
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -213,8 +239,14 @@ function normalizePlugin(value: unknown): PluginItem | null {
     id: String(item.id || ""), name: String(item.name || ""), version: String(item.version || ""), description: String(item.description || ""), author: String(item.author || ""), enabled: Boolean(item.enabled),
     permissions: Array.isArray(item.permissions) ? item.permissions.map(String) : [],
     hooks: Array.isArray(item.hooks) ? item.hooks.map(normalizeHook).filter((hook): hook is PluginHook => Boolean(hook)) : [],
-    frontend: item.frontend, last_error: String(item.last_error || ""),
+    frontend: item.frontend, last_error: String(item.last_error || ""), github: String(item.github || ""),
   }
+}
+
+function PluginUpdateNotice({ update }: { update: PluginUpdateStatus }) {
+  if (update.update_available) return <div className="text-xs text-amber-600 dark:text-amber-400">发现新版本：{update.latest_version}（当前 {update.current_version}）</div>
+  if (update.error) return <div className="text-xs text-muted-foreground">更新检查：{update.error}</div>
+  return <div className="text-xs text-emerald-600 dark:text-emerald-400">已是最新版本{update.latest_version ? `（${update.latest_version}）` : ""}</div>
 }
 
 function normalizeHook(value: unknown): PluginHook | null {
