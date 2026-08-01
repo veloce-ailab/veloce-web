@@ -3,6 +3,7 @@ import type { PointerEvent as ReactPointerEvent } from "react"
 import { createPortal } from "react-dom"
 import { Terminal as XTerm } from "@xterm/xterm"
 import type { IDisposable } from "@xterm/xterm"
+import { FitAddon } from "@xterm/addon-fit"
 import "@xterm/xterm/css/xterm.css"
 import { Maximize2, Minimize2, RefreshCw, TerminalSquare, X } from "lucide-react"
 import api from "@/lib/api"
@@ -69,11 +70,12 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
   const frameRef = useRef<HTMLDivElement | null>(null)
   const terminalHostRef = useRef<HTMLDivElement | null>(null)
   const terminalRef = useRef<XTerm | null>(null)
+  const fitAddonRef = useRef<FitAddon | null>(null)
   const inputDisposableRef = useRef<IDisposable | null>(null)
   const terminalIDRef = useRef("")
   const inputQueueRef = useRef(Promise.resolve())
-  const outputDecoderRef = useRef(new TextDecoder())
   const terminalSizeRef = useRef("")
+  const statusRef = useRef<TerminalStatus>("connecting")
   const resizeTimerRef = useRef<number | null>(null)
   const dragStateRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null)
 
@@ -83,7 +85,23 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
     }
   }, [])
 
+  const writeTerminalBytes = useCallback((bytes: Uint8Array) => {
+    if (bytes.length > 0) {
+      terminalRef.current?.write(bytes)
+    }
+  }, [])
+
   const currentTerminalDimensions = useCallback(() => {
+    const terminal = terminalRef.current
+    const fitAddon = fitAddonRef.current
+    if (terminal && fitAddon && terminalHostRef.current?.clientWidth && terminalHostRef.current?.clientHeight) {
+      try {
+        fitAddon.fit()
+      } catch {
+        // The xterm character measurer can throw before fonts/layout settle.
+      }
+      return { cols: terminal.cols, rows: terminal.rows }
+    }
     const host = terminalHostRef.current
     if (host) {
       return terminalDimensions(host.clientWidth, host.clientHeight)
@@ -95,9 +113,13 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
     return terminalDimensions(defaultWidth, defaultHeight - 40)
   }, [])
 
+  useEffect(() => {
+    statusRef.current = status
+  }, [status])
+
   const sendInput = useCallback((data: string) => {
     const id = terminalIDRef.current
-    if (!id || status !== "ready" || !data) {
+    if (!id || statusRef.current !== "ready" || !data) {
       return
     }
     const encoded = bytesToBase64(new TextEncoder().encode(data))
@@ -110,7 +132,7 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
     }).catch((err) => {
       writeTerminal(newline("[" + errorMessage(err, copy.disconnected) + "]"))
     })
-  }, [copy.disconnected, deviceID, status, writeTerminal])
+  }, [copy.disconnected, deviceID, writeTerminal])
 
   useEffect(() => {
     const host = terminalHostRef.current
@@ -147,17 +169,24 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
         yellow: "#eab308",
       },
     })
+    const fitAddon = new FitAddon()
     terminalRef.current = terminal
+    fitAddonRef.current = fitAddon
+    terminal.loadAddon(fitAddon)
     terminal.open(host)
-    const { cols, rows } = currentTerminalDimensions()
-    terminal.resize(cols, rows)
+    currentTerminalDimensions()
+    window.requestAnimationFrame(() => currentTerminalDimensions())
     inputDisposableRef.current = terminal.onData((data) => sendInput(data))
     return () => {
       inputDisposableRef.current?.dispose()
       inputDisposableRef.current = null
+      fitAddon.dispose()
       terminal.dispose()
       if (terminalRef.current === terminal) {
         terminalRef.current = null
+      }
+      if (fitAddonRef.current === fitAddon) {
+        fitAddonRef.current = null
       }
     }
   }, [currentTerminalDimensions, sendInput])
@@ -173,7 +202,6 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
       setStatus("connecting")
       setStatusDetail("")
       offsetRef.current = 0
-      outputDecoderRef.current = new TextDecoder()
       terminalSizeRef.current = ""
       terminalRef.current?.clear()
       try {
@@ -238,13 +266,12 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
             writeTerminal(newline("[" + copy.truncatedNotice + "]"))
           }
           if (typeof payload.data === "string") {
-            writeTerminal(outputDecoderRef.current.decode(base64ToBytes(payload.data), { stream: true }))
+            writeTerminalBytes(base64ToBytes(payload.data))
           }
           if (typeof payload.offset === "number") {
             offsetRef.current = payload.offset
           }
           if (payload.alive === false) {
-            writeTerminal(outputDecoderRef.current.decode())
             const detail = typeof payload.exit_message === "string" && payload.exit_message ? payload.exit_message : ""
             const code = typeof payload.exit_code === "number" ? payload.exit_code : undefined
             setStatus("exited")
@@ -265,7 +292,7 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
     return () => {
       cancelled = true
     }
-  }, [copy.disconnected, copy.exitedWithCode, copy.truncatedNotice, deviceID, status, terminalID, writeTerminal])
+  }, [copy.disconnected, copy.exitedWithCode, copy.truncatedNotice, deviceID, status, terminalID, writeTerminal, writeTerminalBytes])
 
   // Keep the remote pseudo terminal aligned with the visible xterm viewport.
   useEffect(() => {
@@ -401,7 +428,7 @@ export function ConnectorTerminalWindow({ deviceID, deviceName, deviceOS, worksp
 
         <div
           ref={terminalHostRef}
-          className="min-h-0 flex-1 bg-[#020817] p-2 [&_.xterm]:h-full [&_.xterm-viewport]:overflow-y-auto [&_.xterm-screen]:outline-none"
+          className="min-h-0 min-w-0 flex-1 overflow-hidden bg-[#020817] [&_.xterm]:h-full [&_.xterm]:w-full [&_.xterm-viewport]:overflow-y-auto [&_.xterm-screen]:outline-none"
           onClick={() => terminalRef.current?.focus()}
         />
 
