@@ -18,6 +18,7 @@ import SettingsWorkspace from "./pages/SettingsWorkspace"
 import Wallet from "./pages/Wallet"
 import APIKeys from "./pages/APIKeys"
 import Plugins from "./pages/Plugins"
+import PluginMarket from "./pages/PluginMarket"
 import PluginSettingsPage from "./pages/PluginSettingsPage"
 import PluginRoute from "./pages/PluginRoute"
 import AdvancedChat from "./pages/AdvancedChat"
@@ -260,6 +261,9 @@ function pageTitleForPath(pathname: string, language: Language, t: Translate) {
   }
   if (normalizedPathname === "/dashboard/api-keys") {
     return t("settings.apiKeys")
+  }
+  if (normalizedPathname === "/dashboard/plugins/market") {
+    return t("nav.pluginMarket")
   }
   if (normalizedPathname === "/dashboard/plugins" || normalizedPathname.startsWith("/dashboard/plugins/")) {
     return t("nav.plugins")
@@ -519,6 +523,14 @@ function App() {
                   element={
                     <AdminRoute>
                       <Plugins />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="plugins/market"
+                  element={
+                    <AdminRoute>
+                      <PluginMarket />
                     </AdminRoute>
                   }
                 />

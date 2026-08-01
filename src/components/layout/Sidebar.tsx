@@ -73,7 +73,16 @@ const adminMenuItems: MenuItem[] = [
   { icon: Database, colorClass: "bg-teal-500/15 text-teal-600 dark:bg-teal-400/15 dark:text-teal-300", labelKey: "nav.channels", path: "/dashboard/channels", settingKey: "sidebar_channels_enabled" },
   { icon: Boxes, colorClass: "bg-pink-500/15 text-pink-600 dark:bg-pink-400/15 dark:text-pink-300", labelKey: "nav.models", path: "/dashboard/models", settingKey: "sidebar_models_enabled" },
   { icon: Users, colorClass: "bg-lime-500/15 text-lime-700 dark:bg-lime-400/15 dark:text-lime-300", labelKey: "nav.users", path: "/dashboard/users", settingKey: "sidebar_users_enabled" },
-  { icon: Puzzle, colorClass: "bg-purple-500/15 text-purple-600 dark:bg-purple-400/15 dark:text-purple-300", labelKey: "nav.plugins", path: "/dashboard/plugins" },
+  {
+    icon: Puzzle,
+    colorClass: "bg-purple-500/15 text-purple-600 dark:bg-purple-400/15 dark:text-purple-300",
+    labelKey: "nav.plugins",
+    path: "/dashboard/plugins",
+    children: [
+      { path: "/dashboard/plugins", labelKey: "nav.installedPlugins", colorClass: "bg-purple-500" },
+      { path: "/dashboard/plugins/market", labelKey: "nav.pluginMarket", colorClass: "bg-emerald-500" },
+    ],
+  },
 ]
 
 export function Sidebar({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
@@ -211,7 +220,7 @@ function isSidebarItemActive(pathname: string, item: MenuItem) {
     // 兜底：订阅、兑换码等未列入子菜单的 /dashboard/admin/* 页面仍归属系统管理，
     // 但要排除属于其它菜单项的路径（如工单管理 /dashboard/admin/tickets），
     // 否则两个菜单会同时高亮
-    return pathname.startsWith("/dashboard/admin/") && !pathname.startsWith("/dashboard/admin/tickets")
+    return item.path.startsWith("/dashboard/admin/") && pathname.startsWith("/dashboard/admin/") && !pathname.startsWith("/dashboard/admin/tickets")
   }
   return pathname === item.path
 }
