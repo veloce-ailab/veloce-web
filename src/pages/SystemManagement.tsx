@@ -416,6 +416,7 @@ type SystemTab =
   | "redis"
   | "auth"
   | "email"
+  | "sms"
   | "content"
   | "topNavigation"
   | "navigation"
@@ -436,7 +437,7 @@ type SystemSection = "general" | "theme" | "auth" | "content" | "operations" | "
 const systemSectionTabs: Record<SystemSection, SystemTab[]> = {
   general: ["basic", "billing", "checkIn", "security", "redis"],
   theme: ["theme", "themeSettings"],
-  auth: ["auth", "email"],
+  auth: ["auth", "email", "sms"],
   content: ["content", "topNavigation", "navigation"],
   operations: ["payment", "groups", "metaModels", "subscriptionPlans", "redeemCodes"],
   sysops: ["scheduledTasks", "nodes", "statusMonitor", "reliability", "logCleanup", "configuration", "updates"],
@@ -568,7 +569,7 @@ const defaultThemeColorValues = Object.fromEntries(
 ) as Pick<SystemSettings, ThemeColorFieldKey>
 
 const systemSettingsFieldsByTab: Partial<Record<SystemTab, readonly (keyof SystemSettings)[]>> = {
-  basic: ["system_mode", "site_name", "base_url", "icon_url", "home_iframe_url", "footer_text", "community_enabled"],
+  basic: ["system_mode", "site_name", "base_url", "icon_url", "home_iframe_url", "footer_text"],
   theme: Object.keys(defaultThemeColorValues) as ThemeColorFieldKey[],
   themeSettings: ["theme_background_image", "theme_custom_css"],
   billing: ["pricing_endpoint_enabled", "referral_enabled", "referral_commission_rate", "group_multiplier_mode"],
@@ -576,8 +577,9 @@ const systemSettingsFieldsByTab: Partial<Record<SystemTab, readonly (keyof Syste
   checkIn: ["checkin_enabled", "checkin_daily_reward", "checkin_timezone", "checkin_streak_enabled", "checkin_streak_cycle_days", "checkin_streak_rewards", "checkin_random_enabled", "checkin_random_min", "checkin_random_max"],
   security: ["rate_limit_enabled", "rate_limit_requests_per_minute", "rate_limit_burst", "sensitive_filter_enabled", "sensitive_filter_scope", "ssrf_protection_enabled", "ssrf_allow_private_networks", "sensitive_words", "ssrf_allowed_hosts"],
   redis: ["redis_enabled", "redis_tls_enabled", "redis_address", "redis_database", "redis_username", "redis_password", "redis_password_clear"],
-  auth: ["oidc_enabled", "passkey_enabled", "password_login_enabled", "password_registration_enabled", "token_api_enabled", "email_verification_required", "password_hcaptcha_enabled", "registration_email_suffixes", "registration_email_routing", "auth_agreement_mode", "hcaptcha_site_key", "hcaptcha_secret", "oidc_issuer", "oidc_client_id", "oidc_client_secret", "oidc_redirect_url", "oauth_providers"],
-  email: ["smtp_host", "smtp_port", "smtp_username", "smtp_password", "smtp_from", "sms_enabled", "sms_login_enabled", "sms_binding_required", "sms_provider", "sms_aliyun_access_key_id", "sms_aliyun_access_key_secret", "sms_aliyun_sign_name", "sms_aliyun_template_code", "sms_tencent_secret_id", "sms_tencent_secret_key", "sms_tencent_sdk_app_id", "sms_tencent_sign_name", "sms_tencent_template_id", "sms_tencent_region"],
+  auth: ["oidc_enabled", "passkey_enabled", "password_login_enabled", "password_registration_enabled", "token_api_enabled", "password_hcaptcha_enabled", "auth_agreement_mode", "hcaptcha_site_key", "hcaptcha_secret", "oidc_issuer", "oidc_client_id", "oidc_client_secret", "oidc_redirect_url", "oauth_providers"],
+  email: ["email_verification_required", "registration_email_suffixes", "registration_email_routing", "smtp_host", "smtp_port", "smtp_username", "smtp_password", "smtp_from"],
+  sms: ["sms_enabled", "sms_login_enabled", "sms_binding_required", "sms_provider", "sms_aliyun_access_key_id", "sms_aliyun_access_key_secret", "sms_aliyun_sign_name", "sms_aliyun_template_code", "sms_tencent_secret_id", "sms_tencent_secret_key", "sms_tencent_sdk_app_id", "sms_tencent_sign_name", "sms_tencent_template_id", "sms_tencent_region"],
   content: ["announcement", "about_html", "privacy_policy_url", "terms_url", "privacy_policy", "terms"],
   topNavigation: ["top_nav_enabled", "top_nav_items"],
   navigation: ["sidebar_dashboard_enabled", "sidebar_usage_enabled", "sidebar_data_board_enabled", "sidebar_api_keys_enabled", "sidebar_system_enabled", "sidebar_admin_overview_enabled", "sidebar_channels_enabled", "sidebar_models_enabled", "sidebar_users_enabled"],
@@ -1214,10 +1216,6 @@ export default function SystemManagement({ section = "general", initialTab }: { 
             <TextField label={copy.iconURL} value={form.icon_url} placeholder={copy.iconURLPlaceholder} onChange={(value) => updateField("icon_url", value)} />
             <TextField label={copy.homeIframeURL} value={form.home_iframe_url} placeholder={copy.homeIframeURLPlaceholder} onChange={(value) => updateField("home_iframe_url", value)} />
             <TextField label={copy.footerText} value={form.footer_text} placeholder={copy.footerTextPlaceholder} onChange={(value) => updateField("footer_text", value)} />
-            <div className="lg:col-span-2">
-              <ToggleField label={copy.communityEnabled} checked={form.community_enabled} onChange={(checked) => updateField("community_enabled", checked)} />
-              <p className="mt-1 text-xs text-muted-foreground">{copy.communityEnabledHint}</p>
-            </div>
           </div>
         </SettingsPanel>
       )}
@@ -1328,7 +1326,7 @@ export default function SystemManagement({ section = "general", initialTab }: { 
         <SettingsPanel title={copy.paymentInterface}>
           <div className="space-y-4">
             <SectionTitle title={copy.paymentSettings} description={copy.paymentSettingsDescription} />
-            <PaymentChannelsEditor value={form.payment_channels} legacyChannel={legacyPaymentChannel(form)} copy={copy} onChange={(value) => updateField("payment_channels", value)} />
+            <PaymentChannelsEditor value={form.payment_channels} copy={copy} onChange={(value) => updateField("payment_channels", value)} />
             <div className="grid gap-4 lg:grid-cols-2">
               <ToggleField label={copy.paymentEnabled} checked={form.payment_enabled} onChange={(checked) => updateField("payment_enabled", checked)} />
               <TextField label={copy.currencyDisplayName} value={form.payment_currency_display_name} placeholder="$" onChange={(value) => updateField("payment_currency_display_name", value)} />
@@ -1417,12 +1415,8 @@ export default function SystemManagement({ section = "general", initialTab }: { 
             <ToggleField label={copy.passkeyEnabled} checked={form.passkey_enabled} onChange={(checked) => updateField("passkey_enabled", checked)} />
             <ToggleField label={copy.passwordLoginEnabled} checked={form.password_login_enabled} onChange={(checked) => updateField("password_login_enabled", checked)} />
             <ToggleField label={copy.passwordRegistrationEnabled} checked={form.password_registration_enabled} onChange={(checked) => updateField("password_registration_enabled", checked)} />
-            <div className="space-y-1"><ToggleField label="启用令牌 API 调用" checked={form.token_api_enabled} onChange={(checked) => updateField("token_api_enabled", checked)} /><p className="text-xs text-muted-foreground">关闭后，所有 /v1 与兼容 AI 调用接口将拒绝请求；网页在线使用不受影响。</p></div>
-            <ToggleField label={copy.emailVerificationRequired} checked={form.email_verification_required} onChange={(checked) => updateField("email_verification_required", checked)} />
+            <div className="space-y-1"><ToggleField label="启用令牌 API 调用" checked={form.token_api_enabled} onChange={(checked) => updateField("token_api_enabled", checked)} /><p className="text-xs text-muted-foreground">关闭后，所有 /v1 与兼容 AI 调用接口将拒绝请求。</p></div>
             <ToggleField label={copy.passwordHCaptchaEnabled} checked={form.password_hcaptcha_enabled} onChange={(checked) => updateField("password_hcaptcha_enabled", checked)} />
-
-            <TextareaField label="允许注册的邮箱后缀" value={form.registration_email_suffixes} placeholder="example.com, company.cn（留空表示不限制）" onChange={(value) => updateField("registration_email_suffixes", value)} />
-            <EmailSuffixRoutingEditor value={form.registration_email_routing} groups={groups} onChange={(value) => updateField("registration_email_routing", value)} />
             <label className="block space-y-2 text-sm">
               <span className="font-medium">{copy.authAgreementMode}</span>
               <Select value={String((form.auth_agreement_mode || "notice") || "__shadcn_empty__")} onValueChange={(value) => updateField("auth_agreement_mode", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
@@ -1448,13 +1442,25 @@ export default function SystemManagement({ section = "general", initialTab }: { 
       {activeTab === "email" && (
         <SettingsPanel title={copy.email}>
           <div className="grid gap-4 lg:grid-cols-2">
+            <ToggleField label={copy.emailVerificationRequired} checked={form.email_verification_required} onChange={(checked) => updateField("email_verification_required", checked)} />
+            <TextareaField label="允许注册的邮箱后缀" value={form.registration_email_suffixes} placeholder="example.com, company.cn（留空表示不限制）" onChange={(value) => updateField("registration_email_suffixes", value)} />
+          </div>
+          <div className="border-t pt-4">
+            <EmailSuffixRoutingEditor value={form.registration_email_routing} groups={groups} onChange={(value) => updateField("registration_email_routing", value)} />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
             <TextField label={copy.smtpHost} value={form.smtp_host} placeholder={copy.smtpHostPlaceholder} onChange={(value) => updateField("smtp_host", value)} />
             <TextField label={copy.smtpPort} value={form.smtp_port} placeholder={copy.smtpPortPlaceholder} type="number" onChange={(value) => updateField("smtp_port", value)} />
             <TextField label={copy.smtpUsername} value={form.smtp_username} placeholder={copy.smtpUsernamePlaceholder} onChange={(value) => updateField("smtp_username", value)} />
             <TextField label={copy.smtpPassword} value={form.smtp_password} placeholder={copy.sensitiveValuePlaceholder} type="password" onChange={(value) => updateField("smtp_password", value)} />
             <TextField label={copy.smtpFrom} value={form.smtp_from} placeholder={copy.smtpFromPlaceholder} onChange={(value) => updateField("smtp_from", value)} />
           </div>
-          <div className="space-y-3 border-t pt-4">
+        </SettingsPanel>
+      )}
+
+      {activeTab === "sms" && (
+        <SettingsPanel title={copy.sms}>
+          <div className="space-y-3">
             <SectionTitle title={copy.smsSection} description={copy.smsSectionDescription} />
             <div className="grid gap-4 lg:grid-cols-2">
               <ToggleField label={copy.smsEnabled} checked={form.sms_enabled} onChange={(checked) => updateField("sms_enabled", checked)} />
@@ -2533,6 +2539,7 @@ function systemTabs(copy: SystemCopy): Array<{ id: SystemTab; label: string; ico
     { id: "redis", label: copy.redis, icon: Server },
     { id: "auth", label: copy.auth, icon: KeyRound },
     { id: "email", label: copy.email, icon: Mail },
+    { id: "sms", label: copy.sms, icon: Mail },
     { id: "content", label: copy.content, icon: FileText },
     { id: "topNavigation", label: copy.topNavigation, icon: ToggleLeft },
     { id: "navigation", label: copy.navigation, icon: ToggleLeft },
@@ -3031,7 +3038,7 @@ const paymentChannelConfigFields: Record<EditablePaymentChannel["provider"], Arr
   ],
 }
 
-function PaymentChannelsEditor({ value, legacyChannel, copy, onChange }: { value: string; legacyChannel: EditablePaymentChannel; copy: SystemCopy; onChange: (value: string) => void }) {
+function PaymentChannelsEditor({ value, copy, onChange }: { value: string; copy: SystemCopy; onChange: (value: string) => void }) {
   const channels = parsePaymentChannels(value)
   const update = (next: EditablePaymentChannel[]) => onChange(JSON.stringify(next))
   const [draft, setDraft] = useState<EditablePaymentChannel | null>(null)
@@ -3050,9 +3057,9 @@ function PaymentChannelsEditor({ value, legacyChannel, copy, onChange }: { value
     <div className="space-y-3 rounded-lg border p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><div className="font-medium">支付渠道</div><div className="text-sm text-muted-foreground">可添加多个渠道；用户会先选择支付方式，再从支持该方式的渠道中选择。</div></div>
-        <div className="flex gap-2"><Button type="button" size="sm" variant="outline" disabled={channels.length > 0} onClick={() => update([legacyChannel])}>迁移旧配置</Button><Button type="button" size="sm" onClick={openCreate}>添加渠道</Button></div>
+        <div className="flex gap-2"><Button type="button" size="sm" onClick={openCreate}>添加渠道</Button></div>
       </div>
-      {channels.length === 0 && <div className="text-sm text-muted-foreground">尚未添加渠道。可迁移现有默认配置，或直接添加新渠道；迁移后请保存系统设置。</div>}
+      {channels.length === 0 && <div className="text-sm text-muted-foreground">尚未添加渠道。请添加新渠道后保存系统设置。</div>}
       {channels.map((channel, index) => (
         <div key={channel.id || index} className="flex items-center justify-between gap-3 rounded-md border bg-muted/20 p-3">
           <div><div className="font-medium">{channel.name || `通道 ${index + 1}`}</div><div className="text-sm text-muted-foreground">{channel.provider} · {paymentChannelMethods(channel).join(", ") || "未设置支付方式"} · {channel.enabled ? "已启用" : "已停用"}</div></div>
@@ -3087,54 +3094,6 @@ function parsePaymentChannels(raw: string): EditablePaymentChannel[] {
       return { ...channel, methods: paymentChannelMethods(channel) }
     })
   } catch { return [] }
-}
-
-function legacyPaymentChannel(settings: SystemSettings): EditablePaymentChannel {
-  const provider = isPaymentChannelProvider(settings.payment_gateway_provider) ? settings.payment_gateway_provider : "yipay"
-  return {
-    id: `legacy-${provider}`,
-    name: `已迁移的${provider === "yipay" ? "易支付" : provider}渠道`,
-    provider,
-    enabled: true,
-    methods: parseLegacyPaymentMethods(settings.payment_methods),
-    currency: settings.payment_official_currency,
-    config: {
-      gateway_url: settings.payment_yipay_gateway_url,
-      pid: settings.payment_yipay_pid,
-      key: settings.payment_yipay_key,
-      notify_url: settings.payment_yipay_notify_url,
-      return_url: settings.payment_yipay_return_url,
-      openpayment_base_url: settings.payment_openpayment_base_url,
-      openpayment_config_url: settings.payment_openpayment_config_url,
-      openpayment_merchant_id: settings.payment_openpayment_merchant_id,
-      openpayment_key: settings.payment_openpayment_key,
-      wechat_mch_id: settings.payment_wechat_mch_id,
-      wechat_app_id: settings.payment_wechat_app_id,
-      wechat_serial_no: settings.payment_wechat_serial_no,
-      wechat_private_key: settings.payment_wechat_private_key,
-      wechat_platform_certificate: settings.payment_wechat_platform_certificate,
-      wechat_api_v3_key: settings.payment_wechat_api_v3_key,
-      alipay_app_id: settings.payment_alipay_app_id,
-      alipay_private_key: settings.payment_alipay_private_key,
-      alipay_public_key: settings.payment_alipay_public_key,
-      alipay_gateway_url: settings.payment_alipay_gateway_url,
-      paypal_client_id: settings.payment_paypal_client_id,
-      paypal_client_secret: settings.payment_paypal_client_secret,
-      paypal_base_url: settings.payment_paypal_base_url,
-      paypal_webhook_id: settings.payment_paypal_webhook_id,
-      stripe_secret_key: settings.payment_stripe_secret_key,
-      stripe_webhook_secret: settings.payment_stripe_webhook_secret,
-    },
-  }
-}
-
-function parseLegacyPaymentMethods(raw: string): string[] {
-  try {
-    const parsed = JSON.parse(raw || "[]")
-    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : []
-  } catch {
-    return raw.split(",").map((item) => item.trim()).filter(Boolean)
-  }
 }
 
 function usesCustomPaymentMethods(provider: EditablePaymentChannel["provider"]) {
@@ -4480,6 +4439,7 @@ const zhCopy = {
   premiumRequiredAction: "知道了",
   auth: "登录认证",
   email: "邮件配置",
+  sms: "短信认证",
   content: "页面内容",
   topNavigation: "顶部导航",
   navigation: "侧边栏模块",
@@ -4566,8 +4526,6 @@ const zhCopy = {
   iconURL: "图标 URL",
   iconURLPlaceholder: "例如 https://example.com/icon.png",
   footerText: "页脚文本",
-  communityEnabled: "启用社区功能",
-  communityEnabledHint: "关闭后聊天页的社区入口与社区浏览/导入接口均不可用。",
   footerTextPlaceholder: "例如 © 2026 WindyPear",
   homeIframeURL: "首页 iframe 地址",
   homeIframeURLPlaceholder: "例如 https://status.example.com",
@@ -5018,6 +4976,7 @@ const enCopy: SystemCopy = {
   premiumRequiredAction: "Got it",
   auth: "Authentication",
   email: "Email",
+  sms: "SMS authentication",
   content: "Content",
   topNavigation: "Top Navigation",
   navigation: "Sidebar Modules",
@@ -5104,8 +5063,6 @@ const enCopy: SystemCopy = {
   iconURL: "Icon URL",
   iconURLPlaceholder: "For example, https://example.com/icon.png",
   footerText: "Footer text",
-  communityEnabled: "Enable community",
-  communityEnabledHint: "When disabled, the community entry in chat and the community browse/import APIs are unavailable.",
   footerTextPlaceholder: "For example, © 2026 WindyPear",
   homeIframeURL: "Home iframe URL",
   homeIframeURLPlaceholder: "For example, https://status.example.com",

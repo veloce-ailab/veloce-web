@@ -29,7 +29,6 @@ import EnterpriseTaskDetail from "./pages/EnterpriseTaskDetail"
 import EnterpriseManagement from "./pages/EnterpriseManagement"
 import Tickets from "./pages/Tickets"
 import AdminTickets from "./pages/AdminTickets"
-import { CloudSandboxHostsPanel } from "./pages/CloudSandboxes"
 import StatusPage from "./pages/StatusPage"
 import api from "./lib/api"
 import { I18nProvider, useI18n } from "./lib/i18n"
@@ -390,14 +389,6 @@ function App() {
                   element={
                     <AdminRoute>
                       <SystemManagement section="sysops" />
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="admin/sandboxes"
-                  element={
-                    <AdminRoute>
-                      <CloudSandboxHostsPanel />
                     </AdminRoute>
                   }
                 />

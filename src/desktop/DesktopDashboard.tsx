@@ -6,7 +6,6 @@ import { PageTransition } from "@/components/layout/PageTransition"
 import SystemManagement from "@/pages/SystemManagement"
 import Channels from "@/pages/Channels"
 import Models from "@/pages/Models"
-import { CloudSandboxHostsPanel } from "@/pages/CloudSandboxes"
 import api from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
 
@@ -16,12 +15,12 @@ interface CurrentUser {
 
 export default function DesktopDashboard() {
   const location = useLocation()
-  const { language, t } = useI18n()
+  const { t } = useI18n()
   const { data: user, isLoading } = useQuery<CurrentUser>({
     queryKey: ["me"],
     queryFn: async () => (await api.get("/user/me")).data,
   })
-  const title = desktopDashboardTitle(location.pathname, language === "zh", t("nav.system"), t("nav.channels"), t("nav.models"))
+  const title = desktopDashboardTitle(location.pathname, t("nav.system"), t("nav.channels"), t("nav.models"))
 
   useEffect(() => {
     window.parent?.postMessage({ type: "veloce-desktop-tab-title", title, path: location.pathname }, "*")
@@ -47,7 +46,6 @@ export default function DesktopDashboard() {
               <Route path="content" element={<SystemManagement section="content" />} />
               <Route path="operations" element={<SystemManagement section="operations" />} />
               <Route path="ops" element={<SystemManagement section="sysops" />} />
-              <Route path="sandboxes" element={<CloudSandboxHostsPanel />} />
               <Route path="channels" element={<Channels />} />
               <Route path="models" element={<Models />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -59,9 +57,8 @@ export default function DesktopDashboard() {
   )
 }
 
-function desktopDashboardTitle(pathname: string, zh: boolean, systemTitle: string, channelsTitle: string, modelsTitle: string) {
+function desktopDashboardTitle(pathname: string, systemTitle: string, channelsTitle: string, modelsTitle: string) {
   if (pathname === "/dashboard/channels") return channelsTitle
   if (pathname === "/dashboard/models") return modelsTitle
-  if (pathname === "/dashboard/sandboxes") return zh ? "云端沙箱" : "Cloud Sandboxes"
   return systemTitle
 }
