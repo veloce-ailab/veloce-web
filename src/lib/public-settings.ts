@@ -1,7 +1,6 @@
 export interface PublicSettings {
   edition: "community" | "premium" | string
   system_mode: "operation" | "personal" | "enterprise" | string
-  chat_page_mode: "basic" | "advanced" | string
   site_name: string
   base_url: string
   icon_url: string
@@ -50,7 +49,6 @@ export interface PublicSettings {
   sidebar_wallet_enabled: boolean
   sidebar_data_board_enabled: boolean
   sidebar_api_keys_enabled: boolean
-  sidebar_chat_enabled: boolean
   sidebar_images_enabled: boolean
   sidebar_settings_enabled: boolean
   sidebar_system_enabled: boolean
@@ -105,7 +103,6 @@ export interface PublicSettings {
 export const defaultPublicSettings: PublicSettings = {
   edition: "community",
   system_mode: "operation",
-  chat_page_mode: "basic",
   site_name: "flai",
   base_url: "",
   icon_url: "/logo.png",
@@ -154,7 +151,6 @@ export const defaultPublicSettings: PublicSettings = {
   sidebar_wallet_enabled: true,
   sidebar_data_board_enabled: true,
   sidebar_api_keys_enabled: true,
-  sidebar_chat_enabled: true,
   sidebar_images_enabled: true,
   sidebar_settings_enabled: true,
   sidebar_system_enabled: true,
@@ -238,23 +234,6 @@ export function parseOAuthProviders(raw: string): OAuthProviderSummary[] {
 
 export function isPersonalMode(settings?: Partial<Pick<PublicSettings, "system_mode">>) {
   return String(settings?.system_mode ?? defaultPublicSettings.system_mode).trim().toLowerCase() === "personal"
-}
-
-export function isAdvancedChatEnabled(settings?: Partial<PublicSettings>) {
-  const publicSettings = withPublicSettingsDefaults(settings)
-  return String(publicSettings.chat_page_mode).trim().toLowerCase() !== "basic"
-}
-
-export function chatPathForSettings() {
-  return "/chat"
-}
-
-export function imagePathForSettings() {
-  return "/chat/images"
-}
-
-export function videoPathForSettings() {
-  return "/chat/videos"
 }
 
 export interface TopNavItem {

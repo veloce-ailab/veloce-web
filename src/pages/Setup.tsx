@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/toast"
-import api, { apiURL, isDesktopTarget, setAuthToken } from "@/lib/api"
+import api, { apiURL, setAuthToken } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
 import type { PublicSettings } from "@/lib/public-settings"
 import { withPublicSettingsDefaults } from "@/lib/public-settings"
@@ -62,18 +62,11 @@ export default function Setup() {
       }
       return body as SetupResponse
     },
-    onSuccess: async (result) => {
+    onSuccess: (result) => {
       setAuthToken(result.token)
       localStorage.removeItem("referral_code")
-      if (isDesktopTarget()) {
-        await api.put("/settings", { system_mode: "personal" }).catch(() => undefined)
-      }
       queryClient.setQueryData(["setup-status"], { required: false })
-      if (isDesktopTarget()) {
-        navigate("/chat", { replace: true })
-      } else {
-        window.location.href = "/dashboard"
-      }
+      navigate("/dashboard", { replace: true })
     },
     onError: (err) => error(err instanceof Error ? err.message : copy.failed),
   })

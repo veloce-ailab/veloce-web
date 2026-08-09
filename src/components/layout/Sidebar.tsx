@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, Building2, ChevronDown, ChevronRight, ClipboardList, Database, History, Home, KeyRound, LayoutDashboard, LifeBuoy, MessageSquare, Puzzle, ScrollText, Shield, Users } from "lucide-react"
+import { BarChart3, Boxes, Building2, ChevronDown, ChevronRight, ClipboardList, Database, History, Home, KeyRound, LayoutDashboard, LifeBuoy, Puzzle, ScrollText, Shield, Users } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
@@ -6,7 +6,7 @@ import api from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
 import type { TranslationKey } from "@/lib/i18n"
 import type { PublicSettings } from "@/lib/public-settings"
-import { chatPathForSettings, withPublicSettingsDefaults } from "@/lib/public-settings"
+import { withPublicSettingsDefaults } from "@/lib/public-settings"
 import { cn } from "@/lib/utils"
 
 interface CurrentUser {
@@ -39,7 +39,6 @@ const systemSubItems: SystemSubItem[] = [
   { path: "/dashboard/admin/content", labelKey: "nav.systemContent", colorClass: "bg-cyan-500" },
   { path: "/dashboard/admin/operations", labelKey: "nav.systemOperations", colorClass: "bg-amber-500" },
   { path: "/dashboard/admin/ops", labelKey: "nav.systemOps", colorClass: "bg-orange-500" },
-  { path: "/dashboard/admin/advanced-chat", labelKey: "nav.systemAdvancedChat", colorClass: "bg-violet-500" },
   { path: "/dashboard/admin/sandboxes", labelKey: "nav.cloudSandboxes", colorClass: "bg-sky-500" },
 ]
 
@@ -59,7 +58,6 @@ const userMenuItems: MenuItem[] = [
   { icon: BarChart3, colorClass: "bg-violet-500/15 text-violet-600 dark:bg-violet-400/15 dark:text-violet-300", labelKey: "nav.dataBoard", path: "/dashboard/data-board", settingKey: "sidebar_data_board_enabled" },
   { icon: History, colorClass: "bg-amber-500/15 text-amber-600 dark:bg-amber-400/15 dark:text-amber-300", labelKey: "nav.details", path: "/dashboard/logs", settingKey: "sidebar_usage_enabled" },
   { icon: KeyRound, colorClass: "bg-cyan-500/15 text-cyan-600 dark:bg-cyan-400/15 dark:text-cyan-300", labelKey: "nav.apiKeys", path: "/dashboard/api-keys", settingKey: "sidebar_api_keys_enabled" },
-  { icon: MessageSquare, colorClass: "bg-emerald-500/15 text-emerald-600 dark:bg-emerald-400/15 dark:text-emerald-300", labelKey: "nav.chat", path: "/dashboard/chat", settingKey: "sidebar_chat_enabled" },
   { icon: LifeBuoy, colorClass: "bg-rose-500/15 text-rose-600 dark:bg-rose-400/15 dark:text-rose-300", labelKey: "nav.tickets", path: "/dashboard/tickets" },
   { icon: ClipboardList, colorClass: "bg-orange-500/15 text-orange-600 dark:bg-orange-400/15 dark:text-orange-300", labelKey: "nav.tasks", path: "/dashboard/tasks", enterpriseOnly: true },
 ]
@@ -112,14 +110,7 @@ export function Sidebar({ className, onNavigate }: { className?: string; onNavig
   const publicSettings = withPublicSettingsDefaults(settings)
 	const enterpriseMode = String(publicSettings.system_mode).toLowerCase() === "enterprise"
 	const personalMode = String(publicSettings.system_mode).toLowerCase() === "personal"
-  const chatPath = chatPathForSettings()
   const visibleUserItems = userMenuItems
-    .map((item) => {
-      if (item.labelKey === "nav.chat") {
-        return { ...item, path: chatPath }
-      }
-      return item
-    })
 		.filter((item) => (!item.settingKey || publicSettings[item.settingKey] !== false) && (!item.enterpriseOnly || enterpriseMode) && (!item.personalOnly || personalMode))
   const visibleAdminItems = adminMenuItems
 		.filter((item) => (!item.settingKey || publicSettings[item.settingKey] !== false) && (!item.enterpriseOnly || enterpriseMode) && (!item.personalOnly || personalMode))
@@ -234,11 +225,11 @@ export function SystemManagementSidebar({ className, onNavigate }: { className?:
       <nav className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <div className="mb-3 flex items-center gap-1 border-b pb-3 text-sm">
           <Link
-            to="/chat"
+            to="/dashboard"
             onClick={onNavigate}
             className="flex h-8 w-8 items-center justify-center rounded-2xl hover:bg-muted"
-            aria-label={t("nav.chat")}
-            title={t("nav.chat")}
+            aria-label={t("nav.dashboard")}
+            title={t("nav.dashboard")}
           >
             <Home size={16} />
           </Link>

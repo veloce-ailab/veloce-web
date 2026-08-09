@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tan
 import { Activity, Check, CreditCard, FolderOpen, Globe2, HardDrive, LogOut, PanelTop, Plus, Server, Settings, UserCircle } from "lucide-react"
 import Login from "@/pages/Login"
 import Setup from "@/pages/Setup"
-import AdvancedChat from "@/pages/AdvancedChat"
 import SettingsWorkspace from "@/pages/SettingsWorkspace"
 import DesktopDashboard from "@/desktop/DesktopDashboard"
 import api, {
@@ -969,7 +968,7 @@ function DesktopPageRoutes({ className }: { className: string }) {
             <Route path="/" element={<Navigate to={hasAuthToken() ? "/chat" : "/login"} replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/setup" element={<Setup />} />
-            <Route path="/chat/*" element={<ProtectedRoute><AdvancedChat /></ProtectedRoute>} />
+            <Route path="/chat/*" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard/*" element={<ProtectedRoute><DesktopDashboard /></ProtectedRoute>} />
             <Route path="/settings/*" element={<ProtectedRoute><SettingsWorkspace /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to={hasAuthToken() ? "/chat" : "/login"} replace />} />

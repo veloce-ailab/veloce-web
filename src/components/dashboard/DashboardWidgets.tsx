@@ -21,7 +21,6 @@ import {
   KeyRound,
   LineChart,
   Megaphone,
-  MessageSquare,
   MousePointerClick,
   Music2,
   Monitor,
@@ -40,7 +39,7 @@ import api from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
 import type { PageComponentConfig, PageComponentItem, PageComponentWidth } from "@/lib/page-layouts"
 import type { PublicSettings } from "@/lib/public-settings"
-import { chatPathForSettings, imagePathForSettings, withPublicSettingsDefaults } from "@/lib/public-settings"
+import { withPublicSettingsDefaults } from "@/lib/public-settings"
 import { cn } from "@/lib/utils"
 
 interface CurrentUser {
@@ -810,7 +809,7 @@ function EnterpriseShortcutsWidget() { return <Card><CardHeader><CardTitle class
 
 function EnterpriseMyBalanceWidget() { const { data } = useQuery<{ balance?: string | number }>({ queryKey: ["me"], queryFn: async () => (await api.get("/user/me")).data }); return <Card><CardHeader><CardTitle className="text-base">我的工作额度</CardTitle></CardHeader><CardContent><div className="text-3xl font-semibold">{data?.balance ?? 0}</div><p className="mt-1 text-sm text-muted-foreground">仅个人工作区执行会使用个人额度。</p></CardContent></Card> }
 
-function EnterpriseWorkspaceLinksWidget() { return <Card><CardHeader><CardTitle className="text-base">员工工作台</CardTitle></CardHeader><CardContent className="grid gap-2 sm:grid-cols-2"><Link className="rounded-md border p-3 text-sm hover:bg-muted" to="/dashboard/tasks">我的任务</Link><Link className="rounded-md border p-3 text-sm hover:bg-muted" to="/dashboard/chat">会话与协作</Link><Link className="rounded-md border p-3 text-sm hover:bg-muted" to="/dashboard/files">文件与共享池</Link><Link className="rounded-md border p-3 text-sm hover:bg-muted" to="/dashboard/settings">个人设置</Link></CardContent></Card> }
+function EnterpriseWorkspaceLinksWidget() { return <Card><CardHeader><CardTitle className="text-base">员工工作台</CardTitle></CardHeader><CardContent className="grid gap-2 sm:grid-cols-2"><Link className="rounded-md border p-3 text-sm hover:bg-muted" to="/dashboard/tasks">我的任务</Link><Link className="rounded-md border p-3 text-sm hover:bg-muted" to="/settings/profile">个人设置</Link></CardContent></Card> }
 
 function DashboardStatsWidget() {
   const { t } = useI18n()
@@ -1015,11 +1014,9 @@ function QuickLinksWidget() {
   const title = language === "zh" ? "快捷入口" : "Quick links"
   void settings
   const actions = [
-    { label: t("nav.chat"), href: chatPathForSettings(), icon: MessageSquare },
     { label: t("settings.apiKeys"), href: "/dashboard/api-keys", icon: KeyRound },
     { label: t("nav.wallet"), href: "/dashboard/wallet", icon: WalletCards },
     { label: t("nav.details"), href: "/dashboard/logs", icon: Database },
-    { label: t("nav.images"), href: imagePathForSettings(), icon: Activity },
   ]
 
   return (

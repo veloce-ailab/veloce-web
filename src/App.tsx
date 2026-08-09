@@ -10,7 +10,6 @@ import Models from "./pages/Models"
 import Users from "./pages/Users"
 import Logs from "./pages/Logs"
 import Login from "./pages/Login"
-import DesktopAuthorize from "./pages/DesktopAuthorize"
 import Setup from "./pages/Setup"
 import Home from "./pages/Home"
 import ModelCatalog from "./pages/ModelCatalog"
@@ -21,7 +20,6 @@ import Plugins from "./pages/Plugins"
 import PluginMarket from "./pages/PluginMarket"
 import PluginSettingsPage from "./pages/PluginSettingsPage"
 import PluginRoute from "./pages/PluginRoute"
-import AdvancedChat from "./pages/AdvancedChat"
 import SystemManagement from "./pages/SystemManagement"
 import AdminOverview from "./pages/AdminOverview"
 import AdminAuditLogs from "./pages/AdminAuditLogs"
@@ -40,7 +38,6 @@ import { ThemeProvider } from "./lib/theme"
 import type { TranslationKey } from "./lib/i18n"
 import type { PublicSettings } from "./lib/public-settings"
 import { withPublicSettingsDefaults } from "./lib/public-settings"
-import { desktopAuthorizePath, readDesktopAuthorizeStash } from "./lib/desktop-authorize"
 
 const queryClient = new QueryClient()
 
@@ -220,12 +217,6 @@ function pageTitleForPath(pathname: string, language: Language, t: Translate) {
   if (normalizedPathname === "/dashboard/admin-logs" || normalizedPathname === "/dashboard/admin-overview/logs") {
     return language === "zh" ? "日志查看" : "Audit Logs"
   }
-  if (normalizedPathname === "/dashboard/advanced-chat") {
-    return t("nav.advancedChat")
-  }
-  if (normalizedPathname === "/dashboard/admin/advanced-chat") {
-    return t("nav.advancedChat")
-  }
   if (normalizedPathname === "/dashboard/data-board") {
     return t("dataBoard.title")
   }
@@ -268,42 +259,6 @@ function pageTitleForPath(pathname: string, language: Language, t: Translate) {
   if (normalizedPathname === "/dashboard/plugins" || normalizedPathname.startsWith("/dashboard/plugins/")) {
     return t("nav.plugins")
   }
-  if (normalizedPathname === "/chat") {
-    return t("nav.chat")
-  }
-  if (normalizedPathname === "/chat/images") {
-    return language === "zh" ? "AI 绘画" : language === "ja" ? "AI画像" : "AI Images"
-  }
-  if (normalizedPathname === "/chat/videos") {
-    return language === "zh" ? "AI 视频" : language === "ja" ? "AI Videos" : "AI Videos"
-  }
-  if (normalizedPathname === "/chat/files") {
-    return language === "zh" ? "文件库" : "Files"
-  }
-  if (normalizedPathname === "/chat/knowledge") {
-    return t("nav.knowledgeBases")
-  }
-  if (normalizedPathname === "/chat/memories") {
-    return language === "zh" ? "记忆" : "Memory"
-  }
-  if (normalizedPathname === "/chat/agents" || normalizedPathname.startsWith("/chat/agents/")) {
-    return t("nav.agents")
-  }
-  if (normalizedPathname === "/chat/devices") {
-    return t("nav.devices")
-  }
-  if (normalizedPathname === "/chat/mcp") {
-    return "MCP"
-  }
-  if (normalizedPathname === "/dashboard/chat") {
-    return t("nav.chat")
-  }
-  if (normalizedPathname === "/dashboard/images") {
-    return language === "zh" ? "AI 绘画" : language === "ja" ? "AI画像" : "AI Images"
-  }
-  if (normalizedPathname === "/dashboard/videos") {
-    return language === "zh" ? "AI 视频" : language === "ja" ? "AI Videos" : "AI Videos"
-  }
   if (normalizedPathname === "/settings" || normalizedPathname.startsWith("/settings/")) {
     return t("settings.title")
   }
@@ -327,13 +282,6 @@ function App() {
     if (token) {
       localStorage.setItem("token", token)
       localStorage.removeItem("referral_code")
-      // A pending desktop authorization (e.g. the OIDC callback landed here)
-      // takes priority over the dashboard.
-      const desktopStash = readDesktopAuthorizeStash()
-      if (desktopStash) {
-        window.location.replace(desktopAuthorizePath(desktopStash))
-        return
-      }
       window.history.replaceState(null, "", "/dashboard")
     }
   }, [])
@@ -350,20 +298,11 @@ function App() {
               <Route path="/" element={<PageTransition><Home /></PageTransition>} />
               <Route path="/setup" element={<PageTransition><Setup /></PageTransition>} />
               <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
-              <Route path="/desktop/authorize" element={<PageTransition><DesktopAuthorize /></PageTransition>} />
               <Route path="/models" element={<PageTransition><ModelCatalog /></PageTransition>} />
               <Route path="/status" element={<PageTransition><StatusPage /></PageTransition>} />
               <Route path="/about" element={<PageTransition><PublicContent kind="about" /></PageTransition>} />
               <Route path="/privacy" element={<PageTransition><PublicContent kind="privacy" /></PageTransition>} />
               <Route path="/terms" element={<PageTransition><PublicContent kind="terms" /></PageTransition>} />
-              <Route
-                path="/chat/*"
-                element={
-                  <ProtectedRoute isAuthenticated={isAuthenticated}>
-                    <AdvancedChat />
-                  </ProtectedRoute>
-                }
-              />
               <Route
                 path="/settings/*"
                 element={
@@ -382,7 +321,6 @@ function App() {
               >
                 <Route index element={<Dashboard />} />
                 <Route path="data-board" element={<DataBoard />} />
-                <Route path="personal-company" element={<Navigate to="/chat/agent-groups" replace />} />
                 <Route path="tickets" element={<Tickets />} />
                 <Route path="admin/tickets" element={<AdminRoute><AdminTickets /></AdminRoute>} />
                 <Route path="tasks" element={<EnterpriseRoute><EnterpriseTasks /></EnterpriseRoute>} />
@@ -406,10 +344,6 @@ function App() {
                   }
                 />
                 <Route path="admin-overview/logs" element={<Navigate to="/dashboard/admin-logs" replace />} />
-                <Route
-                  path="advanced-chat"
-                  element={<Navigate to="/dashboard/admin/advanced-chat" replace />}
-                />
                 <Route path="admin" element={<Navigate to="/dashboard/admin/general" replace />} />
                 <Route
                   path="admin/general"
@@ -456,14 +390,6 @@ function App() {
                   element={
                     <AdminRoute>
                       <SystemManagement section="sysops" />
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="admin/advanced-chat"
-                  element={
-                    <AdminRoute>
-                      <SystemManagement section="advancedChat" />
                     </AdminRoute>
                   }
                 />
@@ -536,9 +462,6 @@ function App() {
                 />
                 <Route path="plugins/:pluginId/settings" element={<PluginSettingsPage />} />
                 <Route path="plugins/:pluginId/*" element={<PluginRoute />} />
-                <Route path="chat" element={<Navigate to="/chat" replace />} />
-                <Route path="images" element={<Navigate to="/chat/images" replace />} />
-                <Route path="videos" element={<Navigate to="/chat/videos" replace />} />
                 <Route path="settings/*" element={<Navigate to="/settings/profile" replace />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />

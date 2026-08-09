@@ -47,7 +47,6 @@ export default function DesktopDashboard() {
               <Route path="content" element={<SystemManagement section="content" />} />
               <Route path="operations" element={<SystemManagement section="operations" />} />
               <Route path="ops" element={<SystemManagement section="sysops" />} />
-              <Route path="advanced-chat" element={<SystemManagement section="advancedChat" />} />
               <Route path="sandboxes" element={<CloudSandboxHostsPanel />} />
               <Route path="channels" element={<Channels />} />
               <Route path="models" element={<Models />} />

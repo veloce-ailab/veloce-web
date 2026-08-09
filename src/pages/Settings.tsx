@@ -1,7 +1,6 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Camera, KeyRound, UserCircle } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { LanguageSwitcher } from "@/components/LanguageSwitcher"
 import api, { apiURL } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
@@ -47,30 +46,12 @@ interface PasskeyCredential {
   created_at: string
 }
 
-interface UserChannelCatalog {
-  id: number
-  name: string
-  models: string[]
-}
-
-interface AdvancedChatUserSettings {
-  title_model_name: string
-  title_user_channel_id?: number
-  title_generation_scope: "all" | "recent"
-  connector_approval_agent_id: string
-}
-
-interface AdvancedChatAgentOption {
-  id: string
-  name: string
-}
-
-export type SettingsSection = "profile" | "assistant" | "security"
+export type SettingsSection = "profile" | "security"
 
 export default function Settings({ section = "profile" }: { section?: SettingsSection }) {
   const { language, t } = useI18n()
   const copy = language === "zh" ? zhSettingsCopy : enSettingsCopy
-  const sectionTitle = section === "assistant" ? copy.assistantSettings : section === "security" ? copy.securitySettings : t("settings.title")
+  const sectionTitle = section === "security" ? copy.securitySettings : t("settings.title")
   const queryClient = useQueryClient()
   const [bindStatus, setBindStatus] = useState("")
   const [currentPassword, setCurrentPassword] = useState("")
@@ -83,10 +64,6 @@ export default function Settings({ section = "profile" }: { section?: SettingsSe
   const [bindPhoneNumber, setBindPhoneNumber] = useState("")
   const [bindPhoneCode, setBindPhoneCode] = useState("")
   const [phoneStatus, setPhoneStatus] = useState("")
-  const [titleModelName, setTitleModelName] = useState("")
-  const [titleUserChannelID, setTitleUserChannelID] = useState(0)
-  const [titleGenerationScope, setTitleGenerationScope] = useState<"all" | "recent">("recent")
-  const [connectorApprovalAgentID, setConnectorApprovalAgentID] = useState("")
   const [avatarPreview, setAvatarPreview] = useState("")
   const [avatarStatus, setAvatarStatus] = useState("")
   const avatarInputRef = useRef<HTMLInputElement>(null)
@@ -122,42 +99,6 @@ export default function Settings({ section = "profile" }: { section?: SettingsSe
     },
     enabled: publicSettings.passkey_enabled,
   })
-  const { data: catalog = [] } = useQuery<UserChannelCatalog[]>({
-    queryKey: ["catalog"],
-    queryFn: async () => {
-      const res = await api.get("/user/catalog")
-      return Array.isArray(res.data) ? res.data.map(normalizeCatalogItem) : []
-    },
-  })
-  const { data: advancedChatSettings } = useQuery<AdvancedChatUserSettings>({
-    queryKey: ["advanced-chat-user-settings"],
-    queryFn: async () => {
-      const res = await api.get("/user/advanced-chat/settings")
-      return normalizeAdvancedChatUserSettings(res.data)
-    },
-  })
-  const { data: advancedChatAgents = [] } = useQuery<AdvancedChatAgentOption[]>({
-    queryKey: ["advanced-chat-agents"],
-    queryFn: async () => {
-      const res = await api.get("/user/advanced-chat/agents")
-      return Array.isArray(res.data) ? res.data.map(normalizeAdvancedChatAgentOption).filter((item): item is AdvancedChatAgentOption => Boolean(item)) : []
-    },
-  })
-  const titleModelOptions = useMemo(() => modelsForChannel(catalog, titleUserChannelID), [catalog, titleUserChannelID])
-  const titleSelectOptions = useMemo(
-    () => titleModelName && !titleModelOptions.includes(titleModelName) ? [titleModelName, ...titleModelOptions] : titleModelOptions,
-    [titleModelName, titleModelOptions]
-  )
-
-  useEffect(() => {
-    if (!advancedChatSettings) {
-      return
-    }
-    setTitleModelName(advancedChatSettings.title_model_name || "")
-    setTitleUserChannelID(advancedChatSettings.title_user_channel_id || 0)
-    setTitleGenerationScope(advancedChatSettings.title_generation_scope || "recent")
-    setConnectorApprovalAgentID(advancedChatSettings.connector_approval_agent_id || "")
-  }, [advancedChatSettings])
 
   useEffect(() => {
     return () => {
@@ -306,25 +247,6 @@ export default function Settings({ section = "profile" }: { section?: SettingsSe
     uploadAvatar.mutate(file)
   }
 
-  const saveTitleSettings = useMutation({
-    mutationFn: async () => {
-      const res = await api.put("/user/advanced-chat/settings", {
-        title_model_name: titleModelName.trim(),
-        title_user_channel_id: titleUserChannelID || 0,
-        title_generation_scope: titleGenerationScope,
-        connector_approval_agent_id: connectorApprovalAgentID,
-      })
-      return normalizeAdvancedChatUserSettings(res.data)
-    },
-    onSuccess: (saved) => {
-      setTitleModelName(saved.title_model_name || "")
-      setTitleUserChannelID(saved.title_user_channel_id || 0)
-      setTitleGenerationScope(saved.title_generation_scope || "recent")
-      setConnectorApprovalAgentID(saved.connector_approval_agent_id || "")
-      queryClient.invalidateQueries({ queryKey: ["advanced-chat-user-settings"] })
-    },
-  })
-
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">{sectionTitle}</h1>
@@ -399,75 +321,6 @@ export default function Settings({ section = "profile" }: { section?: SettingsSe
           <PageInlineSlot className="lg:col-span-2" slotKey="primary" />
         </>}
 
-        {section === "assistant" && <>
-          <Card>
-          <CardHeader>
-            <CardTitle>{copy.titleGeneration}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-sm text-muted-foreground">{copy.titleGenerationDescription}</div>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">{copy.titleChannel}</span>
-              <Select value={String((titleUserChannelID || "") || "__shadcn_empty__")} onValueChange={(value) => {
-                  const nextID = Number((value === "__shadcn_empty__" ? "" : value)) || 0
-                  setTitleUserChannelID(nextID)
-                  const nextModels = modelsForChannel(catalog, nextID)
-                  if (titleModelName && !nextModels.includes(titleModelName)) {
-                    setTitleModelName("")
-                  }
-                }}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
-                <SelectItem value="__shadcn_empty__">{copy.anyChannel}</SelectItem>
-                {catalog.map((channel) => (
-                  <SelectItem key={channel.id} value={String(channel.id)}>
-                    {channel.name}
-                  </SelectItem>
-                ))}
-              </SelectContent></Select>
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">{copy.titleModel}</span>
-              <Select value={String((titleModelName) || "__shadcn_empty__")} onValueChange={(value) => setTitleModelName((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
-                <SelectItem value="__shadcn_empty__">{copy.titleDisabled}</SelectItem>
-                {titleSelectOptions.map((model) => (
-                  <SelectItem key={model} value={String(model)}>
-                    {model}
-                  </SelectItem>
-                ))}
-              </SelectContent></Select>
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">{copy.titleScope}</span>
-              <Select value={String((titleGenerationScope) || "__shadcn_empty__")} onValueChange={(value) => setTitleGenerationScope(normalizeTitleScope((value === "__shadcn_empty__" ? "" : value)))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
-                <SelectItem value="recent">{copy.titleScopeRecent}</SelectItem>
-                <SelectItem value="all">{copy.titleScopeAll}</SelectItem>
-              </SelectContent></Select>
-            </label>
-            <Button className="gap-2" disabled={saveTitleSettings.isPending} onClick={() => saveTitleSettings.mutate()}>
-              {saveTitleSettings.isPending ? copy.saving : copy.saveTitleSettings}
-            </Button>
-          </CardContent>
-        </Card>
-          <Card>
-          <CardHeader>
-            <CardTitle>{copy.connectorApproval}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-sm text-muted-foreground">{copy.connectorApprovalDescription}</div>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">{copy.approvalAssistant}</span>
-              <Select value={String((connectorApprovalAgentID) || "__shadcn_empty__")} onValueChange={(value) => setConnectorApprovalAgentID((value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
-                <SelectItem value="__shadcn_empty__">{copy.noApprovalAssistant}</SelectItem>
-                {advancedChatAgents.map((agent) => (
-                  <SelectItem key={agent.id} value={String(agent.id)}>{agent.name}</SelectItem>
-                ))}
-              </SelectContent></Select>
-            </label>
-            <Button className="gap-2" disabled={saveTitleSettings.isPending} onClick={() => saveTitleSettings.mutate()}>
-              {saveTitleSettings.isPending ? copy.saving : copy.saveApprovalSettings}
-            </Button>
-          </CardContent>
-          </Card>
-        </>}
         {section === "security" && <>
         {publicSettings.sms_enabled && (
           <Card>
@@ -716,49 +569,6 @@ function avatarInitials(value: string) {
     return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
   }
   return trimmed.slice(0, 2).toUpperCase()
-}
-
-function normalizeCatalogItem(value: unknown): UserChannelCatalog {
-  const item = isRecord(value) ? value : {}
-  return {
-    id: Number(item.id || 0),
-    name: typeof item.name === "string" ? item.name : "",
-    models: Array.isArray(item.models) ? item.models.filter((model): model is string => typeof model === "string") : [],
-  }
-}
-
-function modelsForChannel(catalog: UserChannelCatalog[], channelID: number) {
-  if (!channelID) {
-    return Array.from(new Set(catalog.flatMap((channel) => channel.models))).sort()
-  }
-  return catalog.find((channel) => channel.id === channelID)?.models || []
-}
-
-function normalizeAdvancedChatAgentOption(value: unknown): AdvancedChatAgentOption | null {
-  const item = isRecord(value) ? value : {}
-  const id = typeof item.id === "string" ? item.id : String(item.id || "")
-  if (!id) {
-    return null
-  }
-  return { id, name: typeof item.name === "string" && item.name ? item.name : id }
-}
-
-function normalizeAdvancedChatUserSettings(value: unknown): AdvancedChatUserSettings {
-  const item = isRecord(value) ? value : {}
-  return {
-    title_model_name: typeof item.title_model_name === "string" ? item.title_model_name : "",
-    title_user_channel_id: Number(item.title_user_channel_id || 0) || undefined,
-    title_generation_scope: normalizeTitleScope(item.title_generation_scope),
-    connector_approval_agent_id: typeof item.connector_approval_agent_id === "string" ? item.connector_approval_agent_id : "",
-  }
-}
-
-function normalizeTitleScope(value: unknown): "all" | "recent" {
-  return value === "all" ? "all" : "recent"
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null
 }
 
 const zhSettingsCopy = {

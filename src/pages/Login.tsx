@@ -7,23 +7,15 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { HCaptcha } from "@/components/HCaptcha"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/toast"
-import api, { apiURL, getOAuthLoginURL, isDesktopTarget, setAuthToken } from "@/lib/api"
-import { resolvePostLoginPath } from "@/lib/desktop-authorize"
+import api, { apiURL, getOAuthLoginURL, setAuthToken } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
 import type { OAuthProviderSummary as OAuthProvider, PublicSettings } from "@/lib/public-settings"
 import { parseOAuthProviders, withPublicSettingsDefaults } from "@/lib/public-settings"
 import { passkeyCredentialToJSON, passkeySupported, preparePasskeyRequestOptions } from "@/lib/passkey"
-import DesktopLogin from "@/desktop/DesktopLogin"
 
 type Mode = "login" | "register"
 
 export default function Login() {
-  // The desktop app never renders the in-app form: sign-in happens inside an
-  // embedded authorization window served by the site itself (hCaptcha cannot
-  // run on file:// pages, and OIDC needs a real browser origin).
-  if (isDesktopTarget()) {
-    return <DesktopLogin />
-  }
   return <WebLogin />
 }
 
@@ -107,7 +99,7 @@ function WebLogin() {
     onSuccess: (result) => {
       setAuthToken(result.token)
       localStorage.removeItem("referral_code")
-      window.location.href = isDesktopTarget() ? "#/chat" : resolvePostLoginPath()
+      window.location.href = "/dashboard"
     },
     onError: (err) => error(err instanceof Error ? err.message : copy.authFailed),
   })
@@ -150,7 +142,7 @@ function WebLogin() {
     onSuccess: (result) => {
       setAuthToken(result.token)
       localStorage.removeItem("referral_code")
-      window.location.href = isDesktopTarget() ? "#/chat" : resolvePostLoginPath()
+      window.location.href = "/dashboard"
     },
     onError: (err) => error(err instanceof Error ? err.message : copy.passkeyFailed),
   })
@@ -174,7 +166,7 @@ function WebLogin() {
     onSuccess: (result) => {
       setAuthToken(result.token)
       localStorage.removeItem("referral_code")
-      window.location.href = isDesktopTarget() ? "#/chat" : resolvePostLoginPath()
+      window.location.href = "/dashboard"
     },
     onError: (err) => error(err instanceof Error ? err.message : copy.authFailed),
   })

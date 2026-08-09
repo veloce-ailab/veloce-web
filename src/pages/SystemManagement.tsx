@@ -3,7 +3,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Activity,
   ArrowDown,
-  Bot,
   ArrowUp,
   CalendarCheck,
   CreditCard,
@@ -48,7 +47,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import api from "@/lib/api"
-import AdvancedChatManagement from "./AdvancedChatManagement"
 import { useI18n } from "@/lib/i18n"
 import { defaultPublicSettings, parseTopNavItems } from "@/lib/public-settings"
 import type { PublicSettings } from "@/lib/public-settings"
@@ -430,13 +428,10 @@ type SystemTab =
   | "updates"
   | "groups"
   | "metaModels"
-  | "advancedChatAssistant"
-  | "advancedChatAttachments"
-  | "advancedChatMCP"
   | "subscriptionPlans"
   | "redeemCodes"
 
-type SystemSection = "general" | "theme" | "auth" | "content" | "operations" | "sysops" | "advancedChat" | "subscriptions" | "redeemCodes"
+type SystemSection = "general" | "theme" | "auth" | "content" | "operations" | "sysops" | "subscriptions" | "redeemCodes"
 
 const systemSectionTabs: Record<SystemSection, SystemTab[]> = {
   general: ["basic", "billing", "checkIn", "security", "redis"],
@@ -445,7 +440,6 @@ const systemSectionTabs: Record<SystemSection, SystemTab[]> = {
   content: ["content", "topNavigation", "navigation"],
   operations: ["payment", "groups", "metaModels", "subscriptionPlans", "redeemCodes"],
   sysops: ["scheduledTasks", "nodes", "statusMonitor", "reliability", "logCleanup", "configuration", "updates"],
-  advancedChat: ["advancedChatAssistant", "advancedChatAttachments", "advancedChatMCP"],
   subscriptions: ["subscriptionPlans"],
   redeemCodes: ["redeemCodes"],
 }
@@ -586,7 +580,7 @@ const systemSettingsFieldsByTab: Partial<Record<SystemTab, readonly (keyof Syste
   email: ["smtp_host", "smtp_port", "smtp_username", "smtp_password", "smtp_from", "sms_enabled", "sms_login_enabled", "sms_binding_required", "sms_provider", "sms_aliyun_access_key_id", "sms_aliyun_access_key_secret", "sms_aliyun_sign_name", "sms_aliyun_template_code", "sms_tencent_secret_id", "sms_tencent_secret_key", "sms_tencent_sdk_app_id", "sms_tencent_sign_name", "sms_tencent_template_id", "sms_tencent_region"],
   content: ["announcement", "about_html", "privacy_policy_url", "terms_url", "privacy_policy", "terms"],
   topNavigation: ["top_nav_enabled", "top_nav_items"],
-  navigation: ["sidebar_dashboard_enabled", "sidebar_usage_enabled", "sidebar_data_board_enabled", "sidebar_api_keys_enabled", "sidebar_chat_enabled", "sidebar_system_enabled", "sidebar_admin_overview_enabled", "sidebar_channels_enabled", "sidebar_models_enabled", "sidebar_users_enabled"],
+  navigation: ["sidebar_dashboard_enabled", "sidebar_usage_enabled", "sidebar_data_board_enabled", "sidebar_api_keys_enabled", "sidebar_system_enabled", "sidebar_admin_overview_enabled", "sidebar_channels_enabled", "sidebar_models_enabled", "sidebar_users_enabled"],
   statusMonitor: ["status_monitor_enabled"],
   reliability: ["reliability_auto_disable_enabled", "reliability_disable_after_failures", "reliability_auto_detect_upstream_enabled", "reliability_auto_detect_interval_seconds", "reliability_auto_detect_timeout_seconds", "reliability_auto_recover_enabled", "reliability_recovery_after_seconds"],
   logCleanup: ["log_storage_mode", "log_retention_days"],
@@ -1648,7 +1642,6 @@ export default function SystemManagement({ section = "general", initialTab }: { 
               <ToggleField label={copy.sidebarUsage} checked={form.sidebar_usage_enabled} onChange={(checked) => updateField("sidebar_usage_enabled", checked)} />
               <ToggleField label={copy.sidebarDataBoard} checked={form.sidebar_data_board_enabled} onChange={(checked) => updateField("sidebar_data_board_enabled", checked)} />
               <ToggleField label={copy.sidebarAPIKeys} checked={form.sidebar_api_keys_enabled} onChange={(checked) => updateField("sidebar_api_keys_enabled", checked)} />
-              <ToggleField label={copy.sidebarChat} checked={form.sidebar_chat_enabled} onChange={(checked) => updateField("sidebar_chat_enabled", checked)} />
               <ToggleField label={copy.sidebarSystem} checked={form.sidebar_system_enabled} onChange={(checked) => updateField("sidebar_system_enabled", checked)} />
               <ToggleField label={copy.sidebarAdminOverview} checked={form.sidebar_admin_overview_enabled} onChange={(checked) => updateField("sidebar_admin_overview_enabled", checked)} />
               <ToggleField label={copy.sidebarChannels} checked={form.sidebar_channels_enabled} onChange={(checked) => updateField("sidebar_channels_enabled", checked)} />
@@ -2205,17 +2198,6 @@ export default function SystemManagement({ section = "general", initialTab }: { 
         </SettingsPanel>
       )}
 
-      {activeTab === "advancedChatAssistant" && (
-        <AdvancedChatManagement mode="assistant" />
-      )}
-
-      {activeTab === "advancedChatAttachments" && (
-        <AdvancedChatManagement mode="attachments" />
-      )}
-
-      {activeTab === "advancedChatMCP" && (
-        <AdvancedChatManagement mode="mcp" />
-      )}
 
       {activeTab === "subscriptionPlans" && (
         <SettingsPanel title={copy.subscriptionPlans}>
@@ -2563,9 +2545,6 @@ function systemTabs(copy: SystemCopy): Array<{ id: SystemTab; label: string; ico
     { id: "updates", label: copy.autoUpdate, icon: RefreshCw },
     { id: "groups", label: copy.groups, icon: Layers },
     { id: "metaModels", label: copy.metaModels, icon: Layers },
-    { id: "advancedChatAssistant", label: copy.advancedChatAssistant, icon: Bot },
-    { id: "advancedChatAttachments", label: copy.advancedChatAttachments, icon: Bot },
-    { id: "advancedChatMCP", label: copy.advancedChatMCP, icon: Bot },
     { id: "subscriptionPlans", label: copy.subscriptionPlans, icon: HandCoins },
     { id: "redeemCodes", label: copy.redeemCodes, icon: Gift },
   ]

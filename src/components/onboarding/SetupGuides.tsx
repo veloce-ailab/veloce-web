@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { ArrowRight, Bot, CircleDollarSign, KeyRound, Laptop, ListChecks, Puzzle, Server, Users } from "lucide-react"
+import { ArrowRight, CircleDollarSign, KeyRound, ListChecks } from "lucide-react"
 import { Link } from "react-router-dom"
 import api from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
@@ -114,48 +114,6 @@ export function DashboardSetupGuide() {
         onOpenChange={setOpen}
         title={zh ? "基础设置向导" : "Getting started"}
         description={zh ? "按顺序完成以下步骤，即可开始通过 API 使用平台。" : "Complete these steps to start using the platform through the API."}
-        actions={actions}
-        skipLabel={zh ? "跳过向导" : "Skip guide"}
-        onSkip={skip}
-      />
-    </>
-  )
-}
-
-export function ChatSetupGuide() {
-  const [open, setOpen] = useState(false)
-  const [dismissed, setDismissed] = useState(isOnboardingDismissed)
-  const { language } = useI18n()
-  const zh = language === "zh"
-  const actions: GuideAction[] = [
-    { title: zh ? "添加自己的 Skill" : "Add your Skill", description: zh ? "上传技能包，为代理提供可复用能力。" : "Upload a skill package to give agents reusable capabilities.", action: zh ? "管理 Skill" : "Manage Skills", href: "/chat/skills", icon: Puzzle, tone: "bg-fuchsia-500/15 text-fuchsia-600 dark:bg-fuchsia-400/15 dark:text-fuchsia-300" },
-    { title: zh ? "配置 MCP" : "Configure MCP", description: zh ? "连接外部 MCP 服务和工具。" : "Connect external MCP servers and tools.", action: zh ? "添加 MCP" : "Add MCP", href: "/chat/mcp", icon: Server, tone: "bg-teal-500/15 text-teal-600 dark:bg-teal-400/15 dark:text-teal-300" },
-    { title: zh ? "创建代理" : "Create an agent", description: zh ? "组合模型、Skill 和 MCP，定义专属工作方式。" : "Combine models, Skills, and MCP to define a dedicated working style.", action: zh ? "新建代理" : "New agent", href: "/chat/agents", icon: Bot, tone: "bg-violet-500/15 text-violet-600 dark:bg-violet-400/15 dark:text-violet-300" },
-    { title: zh ? "连接设备" : "Connect a device", description: zh ? "生成连接命令，让代理能够使用你的设备环境。" : "Generate a connection command so agents can use your device environment.", action: zh ? "添加设备" : "Add device", href: "/chat/devices", icon: Laptop, tone: "bg-blue-500/15 text-blue-600 dark:bg-blue-400/15 dark:text-blue-300" },
-    { title: zh ? "创建工作室" : "Create a studio", description: zh ? "把代理组织为工作室，并进入运营面板安排工作。" : "Organize agents into a studio and use its operations workspace.", action: zh ? "新建工作室" : "New studio", href: "/chat/agent-groups/new", icon: Users, tone: "bg-indigo-500/15 text-indigo-600 dark:bg-indigo-400/15 dark:text-indigo-300" },
-  ]
-
-  if (dismissed) {
-    return null
-  }
-
-  const skip = () => {
-    dismissOnboarding()
-    setOpen(false)
-    setDismissed(true)
-  }
-
-  return (
-    <>
-      <Button type="button" variant="outline" size="sm" className="h-9 gap-2 border-border bg-background" onClick={() => setOpen(true)}>
-        <ListChecks size={16} />
-        <span className="hidden sm:inline">{zh ? "设置向导" : "Setup guide"}</span>
-      </Button>
-      <SetupGuideDialog
-        open={open}
-        onOpenChange={setOpen}
-        title={zh ? "聊天设置向导" : "Chat setup guide"}
-        description={zh ? "按你的工作方式配置能力；每一项都可以稍后再补充。" : "Configure capabilities for your workflow. You can complete every item later."}
         actions={actions}
         skipLabel={zh ? "跳过向导" : "Skip guide"}
         onSkip={skip}

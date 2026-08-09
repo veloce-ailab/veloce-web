@@ -47,9 +47,6 @@ export const defaultDashboardComponents: PageComponentItem[] = [
 
 export function pageKeyFromPathname(pathname: string) {
   const normalized = pathname.replace(/\/+$/, "") || DASHBOARD_PAGE_KEY
-  if (/^\/chat\/session\/[^/]+$/.test(normalized)) {
-    return "/chat"
-  }
   return normalized === "/" ? DASHBOARD_PAGE_KEY : normalized
 }
 

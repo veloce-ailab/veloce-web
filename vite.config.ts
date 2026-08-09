@@ -2,7 +2,7 @@ import fs from "fs"
 import path from "path"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
-import { defineConfig, loadEnv, type Plugin } from "vite"
+import { defineConfig, type Plugin } from "vite"
 
 // dist/placeholder.txt is tracked in git so //go:embed dist compiles in fresh
 // checkouts; emptyOutDir wipes it on every build, so put it back afterwards.
@@ -17,22 +17,18 @@ const keepDistPlaceholder = (): Plugin => ({
   },
 })
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "")
-  const isDesktop = env.VITE_APP_TARGET === "desktop"
-
-  return {
-    base: isDesktop ? "./" : "/",
-    plugins: [tailwindcss(), react(), ...(isDesktop ? [] : [keepDistPlaceholder()])],
+export default defineConfig({
+    base: "/",
+    plugins: [tailwindcss(), react(), keepDistPlaceholder()],
     build: {
       // Clean the output directory so stale hashed bundles never accumulate —
       // the community server embeds web/dist wholesale via //go:embed.
       emptyOutDir: true,
-      outDir: isDesktop ? path.resolve(__dirname, "../desktop/dist/web") : path.resolve(__dirname, "dist"),
+      outDir: path.resolve(__dirname, "dist"),
     },
     resolve: {
       alias: {
-        "@/AppEntry": path.resolve(__dirname, isDesktop ? "./src/App.desktop.tsx" : "./src/App.tsx"),
+        "@/AppEntry": path.resolve(__dirname, "./src/App.tsx"),
         "@": path.resolve(__dirname, "./src"),
       },
     },
@@ -56,5 +52,4 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-  }
 })
