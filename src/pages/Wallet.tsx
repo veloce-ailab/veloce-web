@@ -1,6 +1,6 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CalendarCheck, Copy, CreditCard, Gift, Package, WalletCards } from "lucide-react"
+import { ArrowDown, ArrowUp, CalendarCheck, Copy, CreditCard, Gift, Package, WalletCards } from "lucide-react"
 import { useEffect, useState } from "react"
 import api from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
@@ -87,6 +87,11 @@ interface UserSubscriptionInfo {
   plan: SubscriptionPlanInfo
 }
 
+interface BillingSettings {
+  order: string[]
+  subscriptions: UserSubscriptionInfo[]
+}
+
 export default function Wallet() {
   const { language, t } = useI18n()
   const copy = language === "zh" ? zhWalletCopy : enWalletCopy
@@ -142,6 +147,17 @@ export default function Wallet() {
       return Array.isArray(res.data) ? res.data : []
     },
     enabled: !personalMode,
+  })
+  const { data: billingSettings } = useQuery<BillingSettings>({
+    queryKey: ["billing-settings"],
+    queryFn: async () => (await api.get("/user/billing-settings")).data,
+    enabled: !personalMode,
+  })
+  const [billingOrder, setBillingOrder] = useState<string[]>([])
+  useEffect(() => { if (billingSettings?.order) setBillingOrder(billingSettings.order) }, [billingSettings?.order])
+  const saveBillingOrder = useMutation({
+    mutationFn: async (order: string[]) => api.put("/user/billing-settings", { order }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["billing-settings"] }),
   })
   const { data: purchasablePlans = [] } = useQuery<SubscriptionPlanInfo[]>({
     queryKey: ["purchasable-subscription-plans"],
@@ -336,6 +352,7 @@ export default function Wallet() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {billingOrder.length > 0 && <BillingOrderEditor order={billingOrder} subscriptions={subscriptions} language={language} onChange={setBillingOrder} onSave={() => saveBillingOrder.mutate(billingOrder)} saving={saveBillingOrder.isPending} />}
               <div className="space-y-2">
                 <div className="text-sm font-medium">{copy.mySubscriptions}</div>
                 {subscriptions.length === 0 ? (
@@ -456,6 +473,12 @@ export default function Wallet() {
       <PageInlineSlot slotKey="secondary" />
     </div>
   )
+}
+
+function BillingOrderEditor({ order, subscriptions, language, onChange, onSave, saving }: { order: string[]; subscriptions: UserSubscriptionInfo[]; language: string; onChange: (order: string[]) => void; onSave: () => void; saving: boolean }) {
+  const move = (index: number, delta: number) => { const next = [...order]; const swap = index + delta; if (swap < 0 || swap >= next.length) return; [next[index], next[swap]] = [next[swap], next[index]]; onChange(next) }
+  const label = (source: string) => source === "balance" ? (language === "zh" ? "普通余额" : "Wallet balance") : (subscriptions.find((item) => `subscription:${item.id}` === source)?.plan?.name || source)
+  return <div className="space-y-2 border-b pb-4"><div className="text-sm font-medium">{language === "zh" ? "全局扣费顺序" : "Global billing order"}</div><div className="text-xs text-muted-foreground">{language === "zh" ? "请求会按此顺序消耗，令牌可单独覆盖。" : "Requests consume sources in this order; each token can override it."}</div><div className="space-y-1">{order.map((source, index) => <div key={source} className="flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm"><span className="w-5 text-center text-xs text-muted-foreground">{index + 1}</span><span className="min-w-0 flex-1 truncate">{label(source)}</span><Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp size={14} /></Button><Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={index === order.length - 1} onClick={() => move(index, 1)}><ArrowDown size={14} /></Button></div>)}</div><Button size="sm" onClick={onSave} disabled={saving}>{language === "zh" ? "保存扣费顺序" : "Save billing order"}</Button></div>
 }
 
 function Field({ label, value }: { label: string; value: string }) {

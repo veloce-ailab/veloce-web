@@ -24,6 +24,7 @@ import { isPersonalMode, withPublicSettingsDefaults } from "@/lib/public-setting
 import { formatCurrency } from "@/lib/currency"
 import { APIKeyImportDialog } from "@/components/api-key-import-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DateTimePicker } from "@/components/ui/date-picker"
 
 interface UserChannelCatalog {
   id: number
@@ -45,6 +46,7 @@ interface APIKey {
   quota_remaining?: string | number | null
   enabled: boolean
   expires_at?: string | null
+  billing_sources?: string[]
   usage: UsageStats
   last_used_at?: string | null
   usage_reset_at?: string | null
@@ -73,6 +75,13 @@ interface APIKeyPayload {
   enabled?: boolean
   expires_at?: string
   clear_expiration?: boolean
+  billing_sources?: string[]
+}
+
+interface UserSubscription {
+  id: number
+  balance: string | number
+  plan: { name: string }
 }
 
 export default function APIKeys() {
@@ -107,6 +116,14 @@ export default function APIKeys() {
       const res = await api.get("/user/catalog")
       return Array.isArray(res.data) ? res.data.map(normalizeCatalogItem) : []
     },
+  })
+  const { data: subscriptions = [] } = useQuery<UserSubscription[]>({
+    queryKey: ["my-subscription"],
+    queryFn: async () => {
+      const res = await api.get("/user/subscription")
+      return Array.isArray(res.data) ? res.data : []
+    },
+    enabled: !personalMode,
   })
 
   const { data: apiKeys = [] } = useQuery<APIKey[]>({
@@ -278,6 +295,7 @@ export default function APIKeys() {
                 onCopy={copyValue}
                 personalMode={personalMode}
                 currency={currency}
+                subscriptions={subscriptions}
               /></div>
             ))
           )}
@@ -310,7 +328,7 @@ export default function APIKeys() {
               />
             )}
             <FieldLabel label={language === "zh" ? "过期时间" : "Expiration time"}>
-              <Input type="datetime-local" value={newExpiresAt} onChange={(event) => setNewExpiresAt(event.target.value)} />
+              <DateTimePicker value={newExpiresAt} onValueChange={setNewExpiresAt} />
             </FieldLabel>
             <FieldLabel label={t("settings.allowedIPs")}>
               <Input value={newIPs} onChange={(e) => setNewIPs(e.target.value)} placeholder={t("settings.ipsPlaceholder")} />
@@ -369,6 +387,7 @@ function APIKeyRow({
   onCopy,
   personalMode,
   currency,
+  subscriptions,
 }: {
   apiKey: APIKey
   catalog: UserChannelCatalog[]
@@ -379,6 +398,7 @@ function APIKeyRow({
   onCopy: (value: string) => void
   personalMode: boolean
   currency: string
+  subscriptions: UserSubscription[]
 }) {
   const { language, t } = useI18n()
   const [isConfigOpen, setIsConfigOpen] = useState(false)
@@ -392,8 +412,9 @@ function APIKeyRow({
   const [ips, setIPs] = useState(allowedIPs.join(","))
   const [quotaLimit, setQuotaLimit] = useState(quotaInputValue(apiKey.quota_limit))
   const [expiresAt, setExpiresAt] = useState(dateTimeLocalValue(apiKey.expires_at))
+  const [billingSources, setBillingSources] = useState<string[]>(apiKey.billing_sources || [])
 
-  const payload = (enabled = apiKey.enabled): APIKeyPayload => ({
+  const payload = (enabled = apiKey.enabled, includeBillingSources = false): APIKeyPayload => ({
     name,
     allowed_models: models,
     allowed_user_channels: personalMode ? [] : channelIds,
@@ -401,6 +422,7 @@ function APIKeyRow({
     quota_limit: personalMode ? "0" : parseQuotaLimit(quotaLimit),
     enabled,
     ...(expiresAt ? { expires_at: new Date(expiresAt).toISOString(), clear_expiration: false } : { clear_expiration: true }),
+    ...(personalMode || !includeBillingSources ? {} : { billing_sources: billingSources }),
   })
 
   const resetConfigState = () => {
@@ -410,10 +432,11 @@ function APIKeyRow({
     setIPs(stringArray(apiKey.allowed_ips).join(","))
     setQuotaLimit(quotaInputValue(apiKey.quota_limit))
     setExpiresAt(dateTimeLocalValue(apiKey.expires_at))
+    setBillingSources(apiKey.billing_sources || [])
   }
 
   const saveConfig = () => {
-    onSave(apiKey.id, payload())
+    onSave(apiKey.id, payload(apiKey.enabled, true))
     setIsConfigOpen(false)
   }
 
@@ -529,8 +552,9 @@ function APIKeyRow({
               />
             )}
             <FieldLabel label={language === "zh" ? "过期时间" : "Expiration time"}>
-              <Input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
+              <div className="flex gap-2"><DateTimePicker value={expiresAt} onValueChange={setExpiresAt} /><Button type="button" variant="outline" size="icon" title={language === "zh" ? "清除过期时间" : "Clear expiration"} disabled={!expiresAt} onClick={() => setExpiresAt("")}><X size={16} /></Button></div>
             </FieldLabel>
+            {!personalMode && <BillingSourcesEditor sources={billingSources} subscriptions={subscriptions} language={language} onChange={setBillingSources} />}
             <FieldLabel label={t("settings.allowedIPs")}>
               <Input value={ips} onChange={(e) => setIPs(e.target.value)} placeholder={t("settings.ipsPlaceholder")} />
             </FieldLabel>
@@ -751,6 +775,29 @@ function UsageBox({ label, value }: { label: string; value: string }) {
   )
 }
 
+function BillingSourcesEditor({ sources, subscriptions, language, onChange }: { sources: string[]; subscriptions: UserSubscription[]; language: string; onChange: (sources: string[]) => void }) {
+  const custom = sources.length > 0
+  const sourceFor = (id: number) => `subscription:${id}`
+  const move = (source: string, delta: number) => {
+    const index = sources.indexOf(source); const next = [...sources]; const swap = index + delta
+    if (index < 0 || swap < 0 || swap >= next.length) return
+    ;[next[index], next[swap]] = [next[swap], next[index]]; onChange(next)
+  }
+  const toggle = (source: string) => onChange(sources.includes(source) ? sources.filter((item) => item !== source) : [...sources, source])
+  return <div className="space-y-3 rounded-md border p-3">
+    <div className="text-sm font-medium">{language === "zh" ? "扣费来源" : "Billing sources"}</div>
+    <Select value={custom ? "custom" : "inherit"} onValueChange={(value) => onChange(value === "inherit" ? [] : (sources.length ? sources : ["balance"]))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="inherit">{language === "zh" ? "继承全局使用顺序" : "Inherit global order"}</SelectItem><SelectItem value="custom">{language === "zh" ? "仅使用以下来源" : "Use only the sources below"}</SelectItem></SelectContent></Select>
+    {custom && <div className="space-y-2">
+      {["balance", ...subscriptions.map((subscription) => sourceFor(subscription.id))].map((source) => {
+        const subscription = subscriptions.find((item) => sourceFor(item.id) === source)
+        const selected = sources.includes(source); const index = sources.indexOf(source)
+        const label = source === "balance" ? (language === "zh" ? "普通余额" : "Wallet balance") : `${subscription?.plan?.name || source} (${subscription?.balance ?? 0})`
+        return <div key={source} className="flex items-center gap-2 text-sm"><Checkbox checked={selected} onCheckedChange={() => toggle(source)} /><span className="min-w-0 flex-1 truncate">{label}</span>{selected && <><Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={index === 0} onClick={() => move(source, -1)}><ArrowUp size={14} /></Button><Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={index === sources.length - 1} onClick={() => move(source, 1)}><ArrowDown size={14} /></Button></>}</div>
+      })}
+    </div>}
+  </div>
+}
+
 function FieldLabel({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="space-y-2 block text-sm">
@@ -832,6 +879,7 @@ function normalizeAPIKey(value: unknown): APIKey {
       typeof item.quota_remaining === "string" || typeof item.quota_remaining === "number" ? item.quota_remaining : null,
     enabled: Boolean(item.enabled),
     expires_at: typeof item.expires_at === "string" ? item.expires_at : null,
+    billing_sources: stringArray(item.billing_sources),
     usage: normalizeUsage(item.usage),
     last_used_at: typeof item.last_used_at === "string" ? item.last_used_at : null,
     usage_reset_at: typeof item.usage_reset_at === "string" ? item.usage_reset_at : null,

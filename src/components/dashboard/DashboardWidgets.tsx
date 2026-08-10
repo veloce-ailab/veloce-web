@@ -27,7 +27,7 @@ import {
   WalletCards,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
@@ -47,6 +47,7 @@ interface CurrentUser {
 
 interface UserStats {
   balance: string | number
+  subscription_balance?: string | number
   total_requests: number
   today_requests: number
   total_cost: string | number
@@ -79,6 +80,7 @@ interface StatCard {
   value: string | number
   icon: LucideIcon
   color: string
+  subtitle?: string
 }
 
 interface PageComponentPreset {
@@ -754,7 +756,7 @@ function formatDatePart(date: Date, locale: string, timeZone: string, options: I
 }
 
 function DashboardStatsWidget() {
-  const { t } = useI18n()
+  const { language, t } = useI18n()
   const { data: user, isLoading: isUserLoading } = useQuery<CurrentUser>({
     queryKey: ["me"],
     queryFn: async () => {
@@ -778,7 +780,7 @@ function DashboardStatsWidget() {
   })
 
   const currencyDisplayName = withPublicSettingsDefaults(settings).payment_currency_display_name
-  const cards = isUserLoading ? userCards(t, currencyDisplayName) : userCards(t, currencyDisplayName, userStats, user)
+  const cards = isUserLoading ? userCards(t, currencyDisplayName, language) : userCards(t, currencyDisplayName, language, userStats, user)
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -790,6 +792,7 @@ function DashboardStatsWidget() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{card.value}</div>
+            {card.subtitle && <div className="mt-1 text-xs text-muted-foreground">{card.subtitle}</div>}
           </CardContent>
         </Card>
       ))}
@@ -935,7 +938,7 @@ function AccountSummaryWidget() {
           {user?.email && <div className="mt-1 truncate text-sm text-muted-foreground">{user.email}</div>}
         </div>
         <div className="grid gap-3 text-sm">
-          <SummaryRow label={t("common.balance")} value={`${currencyDisplayName}${formatMoney(userStats?.balance ?? user?.balance ?? 0)}`} />
+          <SummaryRow label={t("common.balance")} value={<BalanceBreakdown currency={currencyDisplayName} balance={userStats?.balance ?? user?.balance ?? 0} subscriptionBalance={userStats?.subscription_balance ?? 0} language={language} />} />
           <SummaryRow label={t("dashboard.todayRequests")} value={userStats?.today_requests || 0} />
           <SummaryRow label={t("dashboard.totalRequests")} value={userStats?.total_requests || 0} />
         </div>
@@ -984,24 +987,28 @@ function QuickLinksWidget() {
   )
 }
 
-function SummaryRow({ label, value }: { label: string; value: string | number }) {
+function SummaryRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-md bg-muted/50 px-3 py-2">
       <span className="min-w-0 truncate text-muted-foreground">{label}</span>
-      <span className="shrink-0 font-medium">{value}</span>
+      <span className="shrink-0 font-medium text-right">{value}</span>
     </div>
   )
 }
 
-function userCards(t: ReturnType<typeof useI18n>["t"], currencyDisplayName: string, stats?: UserStats, user?: CurrentUser): StatCard[] {
+function userCards(t: ReturnType<typeof useI18n>["t"], currencyDisplayName: string, language: string, stats?: UserStats, user?: CurrentUser): StatCard[] {
   return [
-    { title: t("common.balance"), value: `${currencyDisplayName}${formatMoney(stats?.balance ?? user?.balance ?? 0)}`, icon: CreditCard, color: "text-blue-500" },
+    { title: t("common.balance"), value: `${currencyDisplayName}${formatMoney(stats?.balance ?? user?.balance ?? 0)}+${currencyDisplayName}${formatMoney(stats?.subscription_balance ?? 0)}`, subtitle: language === "zh" ? "(余额 + 订阅周期余额)" : "(wallet + subscription balance)", icon: CreditCard, color: "text-blue-500" },
     { title: t("dashboard.todayRequests"), value: stats?.today_requests || 0, icon: Activity, color: "text-green-500" },
     { title: t("dashboard.totalRequests"), value: stats?.total_requests || 0, icon: Database, color: "text-purple-500" },
     { title: t("dashboard.rpm"), value: stats?.rpm || 0, icon: BarChart3, color: "text-cyan-500" },
     { title: t("dashboard.tpm"), value: stats?.tpm || 0, icon: LineChart, color: "text-pink-500" },
     { title: t("dashboard.totalCost"), value: `${currencyDisplayName}${formatMoney(stats?.total_cost || 0)}`, icon: DollarSign, color: "text-yellow-500" },
   ]
+}
+
+function BalanceBreakdown({ currency, balance, subscriptionBalance, language }: { currency: string; balance: string | number; subscriptionBalance: string | number; language: string }) {
+  return <><div>{currency}{formatMoney(balance)}+{currency}{formatMoney(subscriptionBalance)}</div><div className="mt-0.5 text-[10px] font-normal text-muted-foreground">{language === "zh" ? "(余额 + 订阅周期余额)" : "(wallet + subscription balance)"}</div></>
 }
 
 function formatMoney(value: string | number) {
