@@ -1,5 +1,6 @@
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Download, Edit, Plus, Trash } from "lucide-react"
@@ -147,6 +148,7 @@ export default function Models() {
   const [priceChannelID, setPriceChannelID] = useState(0)
   const [syncPreview, setSyncPreview] = useState<SyncPreview | null>(null)
   const [selectedModelNames, setSelectedModelNames] = useState<string[]>([])
+  const [selectedModels, setSelectedModels] = useState<number[]>([])
   // 当前预览的来源：channel=上级渠道（加价），community=社区站点（原价）
   const [syncSource, setSyncSource] = useState<"channel" | "community">("channel")
   const [browserFallback, setBrowserFallback] = useState<BrowserSyncFallback | null>(null)
@@ -200,6 +202,12 @@ export default function Models() {
     onError: () => error(t("admin.deleteFailed")),
   })
 
+  const bulkDeleteModels = useMutation({
+    mutationFn: async () => api.post("/models/bulk-delete", { ids: selectedModels }),
+    onSuccess: () => { success(t("admin.deleted")); setSelectedModels([]); invalidate() },
+    onError: () => error(t("admin.deleteFailed")),
+  })
+
   const previewPriceSync = useMutation({
     mutationFn: async () => {
       if (!priceChannelID) {
@@ -216,7 +224,6 @@ export default function Models() {
       setSelectedModelNames(preview.models.map((item) => item.model_name))
     },
     onError: (err) => {
-      console.error("Model price sync preview failed", err)
       error(syncErrorMessage(err, copy.syncPreviewFailed))
       openBrowserFallback(err)
     },
@@ -234,7 +241,6 @@ export default function Models() {
       setSelectedModelNames(preview.models.map((item) => item.model_name))
     },
     onError: (err) => {
-      console.error("Community price sync preview failed", err)
       error(syncErrorMessage(err, copy.communityPreviewFailed))
     },
   })
@@ -254,7 +260,6 @@ export default function Models() {
       setBrowserFallback(null)
     },
     onError: (err) => {
-      console.error("Browser model price sync preview failed", err)
       error(syncErrorMessage(err, copy.browserPreviewFailed))
     },
   })
@@ -280,7 +285,6 @@ export default function Models() {
       invalidate()
     },
     onError: (err) => {
-      console.error("Model price sync apply failed", err)
       error(syncErrorMessage(err, copy.syncFailed))
     },
   })
@@ -320,7 +324,6 @@ export default function Models() {
       const payload = JSON.parse(text)
       browserPreviewSync.mutate({ fallback: browserFallback, payload })
     } catch (err) {
-      console.error("Browser model price sync fetch failed", err)
       error(err instanceof Error ? `${copy.browserFetchFailed}: ${err.message}` : copy.browserFetchFailed)
     }
   }
@@ -333,7 +336,6 @@ export default function Models() {
       const payload = JSON.parse(browserFallback.manualPayload)
       browserPreviewSync.mutate({ fallback: browserFallback, payload })
     } catch (err) {
-      console.error("Manual model price sync payload parse failed", err)
       error(copy.manualPayloadInvalid)
     }
   }
@@ -386,15 +388,16 @@ export default function Models() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{t("models.configCard")}</CardTitle>
-          <Button className="gap-2" onClick={() => setEditingModel(emptyModel())}>
-            <Plus size={16} />
-            {t("admin.addModel")}
-          </Button>
+          <div className="flex gap-2">
+            {selectedModels.length > 0 && <Button variant="outline" className="gap-2 text-red-500" onClick={() => bulkDeleteModels.mutate()} disabled={bulkDeleteModels.isPending}><Trash size={16} />{t("common.delete")} ({selectedModels.length})</Button>}
+            <Button className="gap-2" onClick={() => setEditingModel(emptyModel())}><Plus size={16} />{t("admin.addModel")}</Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10"><Checkbox checked={models.length > 0 && selectedModels.length === models.length} onCheckedChange={(checked) => setSelectedModels(checked ? models.map((item) => item.id) : [])} /></TableHead>
                 <TableHead>{t("common.model")}</TableHead>
                 <TableHead>{copy.provider}</TableHead>
                 <TableHead>{copy.quotaType}</TableHead>
@@ -407,12 +410,13 @@ export default function Models() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <EmptyRow colSpan={8} text={t("common.loading")} />
+                <EmptyRow colSpan={9} text={t("common.loading")} />
               ) : models.length === 0 ? (
-                <EmptyRow colSpan={8} text={t("admin.noModels")} />
+                <EmptyRow colSpan={9} text={t("admin.noModels")} />
               ) : (
                 models.map((item) => (
                   <TableRow key={item.id}>
+                    <TableCell><Checkbox checked={selectedModels.includes(item.id)} onCheckedChange={(checked) => setSelectedModels((current) => checked ? [...current, item.id] : current.filter((id) => id !== item.id))} /></TableCell>
                     <TableCell className="font-mono text-xs">{item.model_name}</TableCell>
                     <TableCell>
                       <ProviderLabel provider={item.provider} iconURL={item.provider_icon_url} />

@@ -195,6 +195,8 @@ export default function Channels() {
   const [editingUpstream, setEditingUpstream] = useState<Partial<UpstreamChannel> | null>(null)
   const [editingMultipliers, setEditingMultipliers] = useState<UpstreamChannel | null>(null)
   const [modelChannel, setModelChannel] = useState<UpstreamChannel | null>(null)
+  const [selectedUserChannels, setSelectedUserChannels] = useState<number[]>([])
+  const [selectedUpstreams, setSelectedUpstreams] = useState<number[]>([])
 
   const { data: userChannels = [], isLoading: isUserChannelsLoading } = useQuery<UserChannel[]>({
     queryKey: ["admin-user-channels"],
@@ -303,6 +305,12 @@ export default function Channels() {
     onError: () => error(t("admin.deleteFailed")),
   })
 
+  const bulkDeleteUserChannels = useMutation({
+    mutationFn: async () => api.post("/user-channels/bulk-delete", { ids: selectedUserChannels }),
+    onSuccess: () => { success(t("admin.deleted")); setSelectedUserChannels([]); queryClient.invalidateQueries({ queryKey: ["admin-user-channels"] }); queryClient.invalidateQueries({ queryKey: ["admin-upstream-channels"] }); queryClient.invalidateQueries({ queryKey: ["catalog"] }) },
+    onError: () => error(t("admin.deleteFailed")),
+  })
+
   const saveUpstream = useMutation({
     mutationFn: async (channel: Partial<UpstreamChannel>) => {
       const payload = upstreamPayload(channel)
@@ -331,6 +339,18 @@ export default function Channels() {
       queryClient.invalidateQueries({ queryKey: ["admin-channel-usage"] })
       queryClient.invalidateQueries({ queryKey: ["catalog"] })
     },
+    onError: () => error(t("admin.deleteFailed")),
+  })
+
+  const bulkUpstreamAction = useMutation({
+    mutationFn: async ({ action, enabled }: { action: string; enabled?: boolean }) => api.post("/channels/bulk", { ids: selectedUpstreams, action, enabled }),
+    onSuccess: () => { success(t("admin.saved")); setSelectedUpstreams([]); queryClient.invalidateQueries({ queryKey: ["admin-upstream-channels"] }); queryClient.invalidateQueries({ queryKey: ["admin-channel-usage"] }); queryClient.invalidateQueries({ queryKey: ["catalog"] }) },
+    onError: () => error(t("admin.saveFailed")),
+  })
+
+  const bulkDeleteUpstreams = useMutation({
+    mutationFn: async () => api.post("/channels/bulk", { ids: selectedUpstreams, action: "delete" }),
+    onSuccess: () => { success(t("admin.deleted")); setSelectedUpstreams([]); queryClient.invalidateQueries({ queryKey: ["admin-upstream-channels"] }); queryClient.invalidateQueries({ queryKey: ["admin-models-page"] }); queryClient.invalidateQueries({ queryKey: ["catalog"] }) },
     onError: () => error(t("admin.deleteFailed")),
   })
 
@@ -377,15 +397,19 @@ export default function Channels() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{t("admin.userChannels")}</CardTitle>
-          <Button className="gap-2" onClick={() => setEditingUserChannel(emptyUserChannel())}>
+          <div className="flex gap-2">
+            {selectedUserChannels.length > 0 && <Button variant="outline" className="gap-2 text-red-500" onClick={() => bulkDeleteUserChannels.mutate()}><Trash size={16} />{t("common.delete")} ({selectedUserChannels.length})</Button>}
+            <Button className="gap-2" onClick={() => setEditingUserChannel(emptyUserChannel())}>
             <Plus size={16} />
             {t("admin.addUserChannel")}
-          </Button>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10"><Checkbox checked={userChannels.length > 0 && selectedUserChannels.length === userChannels.length} onCheckedChange={(checked) => setSelectedUserChannels(checked ? userChannels.map((item) => item.id) : [])} /></TableHead>
                 <TableHead>{t("channels.name")}</TableHead>
                 <TableHead>{t("admin.description")}</TableHead>
                 <TableHead>{t("channels.multiplier")}</TableHead>
@@ -400,12 +424,13 @@ export default function Channels() {
             </TableHeader>
             <TableBody>
               {isUserChannelsLoading ? (
-                <EmptyRow colSpan={10} text={t("common.loading")} />
+                <EmptyRow colSpan={11} text={t("common.loading")} />
               ) : userChannels.length === 0 ? (
-                <EmptyRow colSpan={10} text={t("admin.noUserChannels")} />
+                <EmptyRow colSpan={11} text={t("admin.noUserChannels")} />
               ) : (
                 userChannels.map((channel) => (
                   <TableRow key={channel.id}>
+                    <TableCell><Checkbox checked={selectedUserChannels.includes(channel.id)} onCheckedChange={(checked) => setSelectedUserChannels((current) => checked ? [...current, channel.id] : current.filter((id) => id !== channel.id))} /></TableCell>
                     <TableCell className="font-medium">
                       <div>{channel.name}</div>
                       {((channel.allowed_groups?.length || 0) > 0 || (channel.allowed_users?.length || 0) > 0) && (
@@ -455,15 +480,19 @@ export default function Channels() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{t("admin.upstreamChannels")}</CardTitle>
-          <Button className="gap-2" onClick={() => setEditingUpstream(emptyUpstream(userChannels[0]?.id))}>
+          <div className="flex flex-wrap gap-2">
+            {selectedUpstreams.length > 0 && <><Button variant="outline" onClick={() => bulkUpstreamAction.mutate({ action: "enable" })}><Power size={16} />{t("common.enabled")}</Button><Button variant="outline" onClick={() => bulkUpstreamAction.mutate({ action: "disable" })}><Power size={16} />{t("common.disabled")}</Button><Button variant="outline" className="text-red-500" onClick={() => bulkDeleteUpstreams.mutate()}><Trash size={16} />{t("common.delete")} ({selectedUpstreams.length})</Button></>}
+            <Button className="gap-2" onClick={() => setEditingUpstream(emptyUpstream(userChannels[0]?.id))}>
             <Plus size={16} />
             {t("admin.addUpstream")}
-          </Button>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10"><Checkbox checked={upstreamChannels.length > 0 && selectedUpstreams.length === upstreamChannels.length} onCheckedChange={(checked) => setSelectedUpstreams(checked ? upstreamChannels.map((item) => item.id) : [])} /></TableHead>
                 <TableHead>{t("channels.name")}</TableHead>
                 <TableHead>{t("admin.userChannel")}</TableHead>
                 <TableHead>{t("channels.type")}</TableHead>
@@ -479,12 +508,13 @@ export default function Channels() {
             </TableHeader>
             <TableBody>
               {isUpstreamsLoading ? (
-                <EmptyRow colSpan={11} text={t("common.loading")} />
+                <EmptyRow colSpan={12} text={t("common.loading")} />
               ) : upstreamChannels.length === 0 ? (
-                <EmptyRow colSpan={11} text={t("channels.noChannels")} />
+                <EmptyRow colSpan={12} text={t("channels.noChannels")} />
               ) : (
                 upstreamChannels.map((channel) => (
                   <TableRow key={channel.id}>
+                    <TableCell><Checkbox checked={selectedUpstreams.includes(channel.id)} onCheckedChange={(checked) => setSelectedUpstreams((current) => checked ? [...current, channel.id] : current.filter((id) => id !== channel.id))} /></TableCell>
                     <TableCell className="font-medium">{channel.name}</TableCell>
                     <TableCell>{channel.user_channel?.name || userChannelName(userChannels, channel.user_channel_id)}</TableCell>
                     <TableCell>{channel.type}</TableCell>
@@ -913,7 +943,12 @@ function UpstreamModelConfigDialog({
   const [customSyncPath, setCustomSyncPath] = useState("")
   const [syncPreview, setSyncPreview] = useState<SyncPreview | null>(null)
   const [selectedModelNames, setSelectedModelNames] = useState<string[]>([])
+  const [selectedConfigIDs, setSelectedConfigIDs] = useState<number[]>([])
   const [browserFallback, setBrowserFallback] = useState<BrowserSyncFallback | null>(null)
+
+  useEffect(() => {
+    setSelectedConfigIDs([])
+  }, [channel?.id])
 
   const { data: models = [], isLoading } = useQuery<ChannelModelConfig[]>({
     queryKey: ["channel-models", channel?.id],
@@ -961,6 +996,12 @@ function UpstreamModelConfigDialog({
     onError: () => error(t("admin.deleteFailed")),
   })
 
+  const bulkDeleteModels = useMutation({
+    mutationFn: async () => api.post("/channel-models/bulk-delete", { ids: selectedConfigIDs }),
+    onSuccess: () => { success(t("admin.deleted")); setSelectedConfigIDs([]); invalidate() },
+    onError: () => error(t("admin.deleteFailed")),
+  })
+
   const saveModelMultipliers = useMutation({
     mutationFn: async ({ modelID, multipliers }: { modelID: number; multipliers: GroupMultiplier[] }) => {
       const res = await api.put(`/channel-models/${modelID}/group-multipliers`, multipliers.map((item) => ({
@@ -994,7 +1035,6 @@ function UpstreamModelConfigDialog({
       setSelectedModelNames(preview.models.map((item) => item.model_name))
     },
     onError: (err) => {
-      console.error("Model sync preview failed", err)
       error(syncErrorMessage(err, copy.syncPreviewFailed))
       if (channel) {
         openBrowserFallback(channel, err)
@@ -1017,7 +1057,6 @@ function UpstreamModelConfigDialog({
       setBrowserFallback(null)
     },
     onError: (err) => {
-      console.error("Browser model sync preview failed", err)
       error(syncErrorMessage(err, copy.browserPreviewFailed))
     },
   })
@@ -1041,7 +1080,6 @@ function UpstreamModelConfigDialog({
       invalidate()
     },
     onError: (err) => {
-      console.error("Model sync apply failed", err)
       error(syncErrorMessage(err, copy.syncFailed))
     },
   })
@@ -1077,7 +1115,6 @@ function UpstreamModelConfigDialog({
       const payload = JSON.parse(text)
       browserPreviewSync.mutate({ fallback: browserFallback, payload })
     } catch (err) {
-      console.error("Browser model sync fetch failed", err)
       error(err instanceof Error ? `${copy.browserFetchFailed}: ${err.message}` : copy.browserFetchFailed)
     }
   }
@@ -1090,7 +1127,6 @@ function UpstreamModelConfigDialog({
       const payload = JSON.parse(browserFallback.manualPayload)
       browserPreviewSync.mutate({ fallback: browserFallback, payload })
     } catch (err) {
-      console.error("Manual model sync payload parse failed", err)
       error(copy.manualPayloadInvalid)
     }
   }
@@ -1127,12 +1163,14 @@ function UpstreamModelConfigDialog({
               <Plus size={16} />
               {copy.addChannelModel}
             </Button>
+            {selectedConfigIDs.length > 0 && <Button className="gap-2 self-end text-red-500" variant="outline" onClick={() => bulkDeleteModels.mutate()}><Trash size={16} />{t("common.delete")} ({selectedConfigIDs.length})</Button>}
           </div>
 
           <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10"><Checkbox checked={models.length > 0 && selectedConfigIDs.length === models.length} onCheckedChange={(checked) => setSelectedConfigIDs(checked ? models.map((item) => item.id) : [])} /></TableHead>
                   <TableHead>{t("common.model")}</TableHead>
                   <TableHead>{copy.upstreamModelName}</TableHead>
                   <TableHead>{copy.provider}</TableHead>
@@ -1142,12 +1180,13 @@ function UpstreamModelConfigDialog({
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <EmptyRow colSpan={5} text={t("common.loading")} />
+                  <EmptyRow colSpan={6} text={t("common.loading")} />
                 ) : models.length === 0 ? (
-                  <EmptyRow colSpan={5} text={copy.noChannelModels} />
+                  <EmptyRow colSpan={6} text={copy.noChannelModels} />
                 ) : (
                   models.map((item) => (
                     <TableRow key={item.id}>
+                      <TableCell><Checkbox checked={selectedConfigIDs.includes(item.id)} onCheckedChange={(checked) => setSelectedConfigIDs((current) => checked ? [...current, item.id] : current.filter((id) => id !== item.id))} /></TableCell>
                       <TableCell className="font-mono text-xs">{item.model_name}</TableCell>
                       <TableCell className="font-mono text-xs">{item.upstream_model_name || item.model_name}</TableCell>
                       <TableCell>

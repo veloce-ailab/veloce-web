@@ -2,7 +2,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowDown, ArrowUp, Copy, Plus, RotateCcw, RotateCw, Save, Trash, X } from "lucide-react"
+import { ArrowDown, ArrowUp, Copy, Download, Plus, RotateCcw, RotateCw, Save, Trash, X } from "lucide-react"
 import api, { apiURL } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
 import { Button } from "@/components/ui/button"
@@ -23,6 +23,7 @@ import type { PublicSettings } from "@/lib/public-settings"
 import { isPersonalMode, withPublicSettingsDefaults } from "@/lib/public-settings"
 import { formatCurrency } from "@/lib/currency"
 import { APIKeyImportDialog } from "@/components/api-key-import-dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface UserChannelCatalog {
   id: number
@@ -84,6 +85,7 @@ export default function APIKeys() {
   const [newModels, setNewModels] = useState<string[]>([])
   const [newIPs, setNewIPs] = useState("")
   const [newQuotaLimit, setNewQuotaLimit] = useState("")
+  const [selectedKeys, setSelectedKeys] = useState<number[]>([])
   const { data: settings } = useQuery<PublicSettings>({
     queryKey: ["public-settings"],
     queryFn: async () => {
@@ -156,6 +158,18 @@ export default function APIKeys() {
     onSuccess: () => {
       success(t("settings.keyDeleted"))
       queryClient.invalidateQueries({ queryKey: ["api-keys"] })
+    },
+    onError: () => error(t("settings.keyDeleteFailed")),
+  })
+
+  const bulkKeyAction = useMutation({
+    mutationFn: async ({ action }: { action: "delete" | "export" }) => (await api.post("/user/api-keys/bulk", { ids: selectedKeys, action })).data,
+    onSuccess: (data, variables) => {
+      if (variables.action === "export") {
+        const blob = new Blob([JSON.stringify(data.keys || [], null, 2)], { type: "application/json" })
+        const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = "api-keys.json"; link.click(); URL.revokeObjectURL(url)
+        success(language === "zh" ? "令牌已导出" : "Tokens exported")
+      } else { success(t("settings.keyDeleted")); setSelectedKeys([]); queryClient.invalidateQueries({ queryKey: ["api-keys"] }) }
     },
     onError: () => error(t("settings.keyDeleteFailed")),
   })
@@ -236,15 +250,17 @@ export default function APIKeys() {
 
       <PageTitleSlot />
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{t("settings.apiKeys")}</CardTitle>
+          {normalizedAPIKeys.length > 0 && <div className="flex gap-2"><Button variant="outline" onClick={() => bulkKeyAction.mutate({ action: "export" })} disabled={selectedKeys.length === 0}><Download size={16} />{language === "zh" ? "导出选中" : "Export selected"}</Button><Button variant="outline" className="text-red-500" onClick={() => bulkKeyAction.mutate({ action: "delete" })} disabled={selectedKeys.length === 0}><Trash size={16} />{t("common.delete")} ({selectedKeys.length})</Button></div>}
         </CardHeader>
         <CardContent className="space-y-4">
+          {normalizedAPIKeys.length > 0 && <label className="flex items-center gap-2 text-sm"><Checkbox checked={selectedKeys.length === normalizedAPIKeys.length} onCheckedChange={(checked) => setSelectedKeys(checked ? normalizedAPIKeys.map((key) => key.id) : [])} />{language === "zh" ? "全选" : "Select all"}</label>}
           {normalizedAPIKeys.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">{t("settings.noKeys")}</div>
           ) : (
             normalizedAPIKeys.map((apiKey) => (
-              <APIKeyRow
+              <div key={apiKey.id} className="flex items-start gap-3"><Checkbox className="mt-5" checked={selectedKeys.includes(apiKey.id)} onCheckedChange={(checked) => setSelectedKeys((current) => checked ? [...current, apiKey.id] : current.filter((id) => id !== apiKey.id))} /><APIKeyRow
                 key={apiKey.id}
                 apiKey={apiKey}
                 catalog={catalog}
@@ -255,7 +271,7 @@ export default function APIKeys() {
                 onCopy={copyValue}
                 personalMode={personalMode}
                 currency={currency}
-              />
+              /></div>
             ))
           )}
         </CardContent>
