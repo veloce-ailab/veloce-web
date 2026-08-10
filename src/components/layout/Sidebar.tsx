@@ -113,7 +113,7 @@ export function AppSidebar({ className, onNavigate, mobile = false }: { classNam
   const pluginItems = pluginSidebarItems(pluginExtensions)
 
   const menu = (
-    <nav className="min-h-0 flex-1 overflow-y-auto p-3">
+    <nav className="sidebar-scrollbar min-h-0 flex-1 overflow-y-auto p-3">
       <SidebarMenu>
           {visibleUserItems.map((item) => (
             <SidebarLink key={item.path} item={item} active={location.pathname === item.path} onNavigate={onNavigate} />
@@ -222,7 +222,7 @@ export function SystemManagementSidebar({ className, onNavigate }: { className?:
 
   return (
     <aside className={cn("flex h-full w-56 shrink-0 flex-col border-r bg-card", className)}>
-      <nav className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <nav className="sidebar-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <div className="mb-3 flex items-center gap-1 border-b pb-3 text-sm">
           <Link
             to="/dashboard"
