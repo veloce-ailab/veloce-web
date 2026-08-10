@@ -24,7 +24,6 @@ import { Button } from "@/components/ui/button"
 import { PageInlineSlot, PageTitleSlot } from "@/components/layout/PageTitleSlot"
 import { useToast } from "@/components/ui/toast"
 import { useConfirmDialog } from "@/components/ui/confirm-dialog"
-import EnterprisePeopleManagement from "@/pages/EnterprisePeopleManagement"
 import type { PublicSettings } from "@/lib/public-settings"
 import { formatCurrency } from "@/lib/currency"
 import { withPublicSettingsDefaults } from "@/lib/public-settings"
@@ -68,12 +67,11 @@ export default function Users() {
   const { confirm, confirmDialog } = useConfirmDialog()
   const { data: settings } = useQuery<Partial<PublicSettings>>({ queryKey: ["public-settings"], queryFn: async () => (await api.get("/public/settings")).data })
   const publicSettings = withPublicSettingsDefaults(settings)
-  const enterpriseMode = String(publicSettings.system_mode || "").toLowerCase() === "enterprise"
   const currency = publicSettings.payment_currency_display_name
 
   const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ["users"],
-    enabled: settings !== undefined && !enterpriseMode,
+    enabled: settings !== undefined,
     queryFn: async () => {
       const res = await api.get("/users")
       return Array.isArray(res.data) ? res.data : []
@@ -82,7 +80,7 @@ export default function Users() {
 
   const { data: groups = [] } = useQuery<Group[]>({
     queryKey: ["groups"],
-    enabled: settings !== undefined && !enterpriseMode,
+    enabled: settings !== undefined,
     queryFn: async () => {
       const res = await api.get("/groups")
       return Array.isArray(res.data) ? res.data : []
@@ -118,7 +116,6 @@ export default function Users() {
     onError: () => error(copy.deleteFailed),
   })
 
-  if (enterpriseMode) return <EnterprisePeopleManagement />
   return (
     <div className="space-y-6">
       {confirmDialog}

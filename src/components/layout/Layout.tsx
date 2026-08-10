@@ -24,8 +24,6 @@ interface CurrentUser {
   avatar_url?: string
   is_admin?: boolean
 }
-interface EnterprisePortalResponse { portal: { page_layouts?: string } }
-interface EnterpriseOrganizationResponse { role?: string }
 
 export function Layout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -47,21 +45,17 @@ export function Layout() {
     },
   })
   const publicSettings = withPublicSettingsDefaults(settings)
-  const enterpriseMode = String(publicSettings.system_mode).toLowerCase() === "enterprise"
-  const { data: enterprisePortal } = useQuery<EnterprisePortalResponse>({ queryKey: ["enterprise-portal"], queryFn: async () => (await api.get("/user/enterprise/portal")).data, retry: false, enabled: enterpriseMode })
-  const { data: enterpriseOrganization } = useQuery<EnterpriseOrganizationResponse>({ queryKey: ["enterprise-organization"], queryFn: async () => (await api.get("/user/enterprise/organization")).data, retry: false, enabled: enterpriseMode })
   const currentPageKey = pageKeyFromPathname(location.pathname)
   const layoutEditorLabel = language === "zh" ? (isLayoutEditing ? "退出编辑" : "可视化编辑") : isLayoutEditing ? "Exit editing" : "Visual editing"
-  const enterpriseDashboard = enterpriseMode && Boolean(enterprisePortal?.portal)
-  const canEditLayout = Boolean(user?.is_admin || (enterpriseDashboard && ["owner", "admin"].includes(enterpriseOrganization?.role || "")))
+  const canEditLayout = Boolean(user?.is_admin)
 
   return (
     <PageLayoutEditorProvider
       currentPageKey={currentPageKey}
       isEditing={isLayoutEditing}
-      pageLayoutsRaw={enterpriseDashboard ? enterprisePortal?.portal.page_layouts || "{}" : publicSettings.page_layouts}
+      pageLayoutsRaw={publicSettings.page_layouts}
       onEditingChange={setIsLayoutEditing}
-      saveEndpoint={enterpriseDashboard ? "/user/enterprise/portal/layout" : "/settings"}
+      saveEndpoint="/settings"
     >
     <div className="flex h-screen flex-col overflow-hidden bg-background">
       <AppHeader

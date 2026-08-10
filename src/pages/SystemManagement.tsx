@@ -1207,7 +1207,6 @@ export default function SystemManagement({ section = "general", initialTab }: { 
               <Select value={String((form.system_mode || "operation") || "__shadcn_empty__")} onValueChange={(value) => updateField("system_mode", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                 <SelectItem value="operation">{copy.systemModeOperation}</SelectItem>
                 <SelectItem value="personal">{copy.systemModePersonal}</SelectItem>
-				<SelectItem value="enterprise">{copy.systemModeEnterprise}</SelectItem>
               </SelectContent></Select>
               <span className="text-xs text-muted-foreground">{copy.systemModeHint}</span>
             </label>
@@ -4323,7 +4322,6 @@ const zhCopy = {
   systemMode: "运行模式",
   systemModeOperation: "运营模式",
   systemModePersonal: "自用模式",
-  systemModeEnterprise: "企业模式",
   systemModeHint: "运营模式面向公开运营；自用模式关闭余额扣费和支付等运营能力；企业模式用于单企业私有部署，并启用企业成员、Workspace、RBAC 和治理能力。切换模式不会删除历史数据。",
   theme: "颜色自定义",
   themeSettings: "主题设置",
@@ -4860,8 +4858,7 @@ const enCopy: SystemCopy = {
   systemMode: "Run mode",
   systemModeOperation: "Operation mode",
   systemModePersonal: "Personal mode",
-  systemModeEnterprise: "Enterprise mode",
-  systemModeHint: "Operation mode is for public services; personal mode disables charging and payment features; enterprise mode enables single-enterprise members, workspaces, RBAC, and governance. Switching modes preserves existing data.",
+  systemModeHint: "Operation mode is for public services; personal mode disables charging and payment features. Switching modes preserves existing data.",
   theme: "Color customization",
   themeSettings: "Theme settings",
   themeSettingsDescription: "Configure site theme colors, accents, backgrounds, text, and borders for light and dark modes.",

@@ -93,7 +93,6 @@ export function PageLayoutEditorProvider({
       success(copy.saved)
       queryClient.invalidateQueries({ queryKey: ["public-settings"] })
       queryClient.invalidateQueries({ queryKey: ["settings"] })
-      queryClient.invalidateQueries({ queryKey: ["enterprise-portal"] })
       onEditingChange(false)
     },
     onError: () => error(copy.saveFailed),

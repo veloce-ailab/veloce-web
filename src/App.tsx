@@ -24,9 +24,6 @@ import SystemManagement from "./pages/SystemManagement"
 import AdminOverview from "./pages/AdminOverview"
 import AdminAuditLogs from "./pages/AdminAuditLogs"
 import PublicContent from "./pages/PublicContent"
-import EnterpriseTasks from "./pages/EnterpriseTasks"
-import EnterpriseTaskDetail from "./pages/EnterpriseTaskDetail"
-import EnterpriseManagement from "./pages/EnterpriseManagement"
 import Tickets from "./pages/Tickets"
 import AdminTickets from "./pages/AdminTickets"
 import StatusPage from "./pages/StatusPage"
@@ -97,20 +94,6 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
     return <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
   }
   if (!user?.is_admin) {
-    return <Navigate to="/dashboard" replace />
-  }
-  return <>{children}</>
-}
-
-const EnterpriseRoute = ({ children }: { children: React.ReactNode }) => {
-  const { data: settings, isLoading } = useQuery<PublicSettings>({
-    queryKey: ["public-settings"],
-    queryFn: async () => (await api.get("/public/settings")).data,
-  })
-  if (isLoading) {
-    return <div className="text-sm text-muted-foreground">加载中...</div>
-  }
-  if (String(withPublicSettingsDefaults(settings).system_mode).toLowerCase() !== "enterprise") {
     return <Navigate to="/dashboard" replace />
   }
   return <>{children}</>
@@ -243,9 +226,6 @@ function pageTitleForPath(pathname: string, language: Language, t: Translate) {
   if (normalizedPathname === "/dashboard/admin/tickets") {
     return language === "zh" ? "工单管理" : "Ticket Management"
   }
-  if (normalizedPathname === "/dashboard/enterprise") {
-    return language === "zh" ? "企业管理" : "Enterprise Management"
-  }
   if (normalizedPathname === "/dashboard/wallet") {
     return language === "zh" ? "钱包" : language === "ja" ? "ウォレット" : "Wallet"
   }
@@ -322,10 +302,6 @@ function App() {
                 <Route path="data-board" element={<DataBoard />} />
                 <Route path="tickets" element={<Tickets />} />
                 <Route path="admin/tickets" element={<AdminRoute><AdminTickets /></AdminRoute>} />
-                <Route path="tasks" element={<EnterpriseRoute><EnterpriseTasks /></EnterpriseRoute>} />
-				<Route path="tasks/:id" element={<EnterpriseRoute><EnterpriseTaskDetail /></EnterpriseRoute>} />
-				<Route path="enterprise/tasks/:id" element={<EnterpriseRoute><AdminRoute><EnterpriseTaskDetail /></AdminRoute></EnterpriseRoute>} />
-                <Route path="enterprise" element={<EnterpriseRoute><AdminRoute><EnterpriseManagement /></AdminRoute></EnterpriseRoute>} />
                 <Route
                   path="admin-overview"
                   element={

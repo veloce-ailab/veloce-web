@@ -61,11 +61,10 @@ export function PageComponentSlots({ pageKey, slotKey, defaultItems = [], classN
     enabled: !editor?.isEditing,
   })
   const publicSettings = withPublicSettingsDefaults(settings)
-  const enterpriseMode = String(publicSettings.system_mode).toLowerCase() === "enterprise"
   const normalizedPageKey = pageKeyFromPathname(pageKey)
   const savedItems = getPageSlotItems(parsePageLayouts(publicSettings.page_layouts), normalizedPageKey, slotKey, defaultItems)
   const items = (editor ? editor.getItems(normalizedPageKey, slotKey, defaultItems) : savedItems).filter((item) =>
-    pageComponentPresets.some((preset) => preset.type === item.type) && (enterpriseMode || !item.type.startsWith("enterprise_"))
+    pageComponentPresets.some((preset) => preset.type === item.type)
   )
 
   if (!editor?.isEditing && items.length === 0) {

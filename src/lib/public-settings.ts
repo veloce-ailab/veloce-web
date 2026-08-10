@@ -1,6 +1,6 @@
 export interface PublicSettings {
   edition: "community" | "premium" | string
-  system_mode: "operation" | "personal" | "enterprise" | string
+  system_mode: "operation" | "personal" | string
   site_name: string
   base_url: string
   icon_url: string

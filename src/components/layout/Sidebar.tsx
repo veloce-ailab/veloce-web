@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, Building2, ChevronDown, ChevronRight, ClipboardList, Database, History, Home, KeyRound, LayoutDashboard, LifeBuoy, Puzzle, ScrollText, Shield, Users } from "lucide-react"
+import { BarChart3, Boxes, ChevronDown, ChevronRight, Database, History, Home, KeyRound, LayoutDashboard, LifeBuoy, Puzzle, ScrollText, Shield, Users } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
@@ -20,7 +20,6 @@ interface MenuItem {
   label?: string
   path: string
   settingKey?: keyof PublicSettings
-  enterpriseOnly?: boolean
   personalOnly?: boolean
   children?: SystemSubItem[]
 }
@@ -58,7 +57,6 @@ const userMenuItems: MenuItem[] = [
   { icon: History, colorClass: "bg-amber-500/15 text-amber-600 dark:bg-amber-400/15 dark:text-amber-300", labelKey: "nav.details", path: "/dashboard/logs", settingKey: "sidebar_usage_enabled" },
   { icon: KeyRound, colorClass: "bg-cyan-500/15 text-cyan-600 dark:bg-cyan-400/15 dark:text-cyan-300", labelKey: "nav.apiKeys", path: "/dashboard/api-keys", settingKey: "sidebar_api_keys_enabled" },
   { icon: LifeBuoy, colorClass: "bg-rose-500/15 text-rose-600 dark:bg-rose-400/15 dark:text-rose-300", labelKey: "nav.tickets", path: "/dashboard/tickets" },
-  { icon: ClipboardList, colorClass: "bg-orange-500/15 text-orange-600 dark:bg-orange-400/15 dark:text-orange-300", labelKey: "nav.tasks", path: "/dashboard/tasks", enterpriseOnly: true },
 ]
 
 const adminMenuItems: MenuItem[] = [
@@ -66,7 +64,6 @@ const adminMenuItems: MenuItem[] = [
   { icon: ScrollText, colorClass: "bg-slate-500/15 text-slate-600 dark:bg-slate-400/15 dark:text-slate-300", labelKey: "nav.auditLogs", path: "/dashboard/admin-logs", settingKey: "sidebar_admin_overview_enabled" },
   { icon: Shield, colorClass: "bg-rose-500/15 text-rose-600 dark:bg-rose-400/15 dark:text-rose-300", labelKey: "nav.system", path: "/dashboard/admin/general", settingKey: "sidebar_system_enabled", children: systemSubItems },
   { icon: LifeBuoy, colorClass: "bg-rose-500/15 text-rose-600 dark:bg-rose-400/15 dark:text-rose-300", labelKey: "nav.adminTickets", path: "/dashboard/admin/tickets" },
-  { icon: Building2, colorClass: "bg-indigo-500/15 text-indigo-600 dark:bg-indigo-400/15 dark:text-indigo-300", labelKey: "nav.enterprise", path: "/dashboard/enterprise", enterpriseOnly: true },
   { icon: Database, colorClass: "bg-teal-500/15 text-teal-600 dark:bg-teal-400/15 dark:text-teal-300", labelKey: "nav.channels", path: "/dashboard/channels", settingKey: "sidebar_channels_enabled" },
   { icon: Boxes, colorClass: "bg-pink-500/15 text-pink-600 dark:bg-pink-400/15 dark:text-pink-300", labelKey: "nav.models", path: "/dashboard/models", settingKey: "sidebar_models_enabled" },
   { icon: Users, colorClass: "bg-lime-500/15 text-lime-700 dark:bg-lime-400/15 dark:text-lime-300", labelKey: "nav.users", path: "/dashboard/users", settingKey: "sidebar_users_enabled" },
@@ -107,13 +104,11 @@ export function Sidebar({ className, onNavigate }: { className?: string; onNavig
     enabled: Boolean(user),
   })
   const publicSettings = withPublicSettingsDefaults(settings)
-	const enterpriseMode = String(publicSettings.system_mode).toLowerCase() === "enterprise"
 	const personalMode = String(publicSettings.system_mode).toLowerCase() === "personal"
   const visibleUserItems = userMenuItems
-		.filter((item) => (!item.settingKey || publicSettings[item.settingKey] !== false) && (!item.enterpriseOnly || enterpriseMode) && (!item.personalOnly || personalMode))
+		.filter((item) => (!item.settingKey || publicSettings[item.settingKey] !== false) && (!item.personalOnly || personalMode))
   const visibleAdminItems = adminMenuItems
-		.filter((item) => (!item.settingKey || publicSettings[item.settingKey] !== false) && (!item.enterpriseOnly || enterpriseMode) && (!item.personalOnly || personalMode))
-		.map((item) => item.path === "/dashboard/users" && enterpriseMode ? { ...item, labelKey: "nav.employees" as TranslationKey } : item)
+		.filter((item) => (!item.settingKey || publicSettings[item.settingKey] !== false) && (!item.personalOnly || personalMode))
   const pluginItems = pluginSidebarItems(pluginExtensions)
 
   return (
