@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Ban, Edit, Plus, Search, ShieldCheck, Trash, WalletCards } from "lucide-react"
 import api from "@/lib/api"
@@ -21,6 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import type { TableQuery } from "@/components/ui/table"
+import { tableQueryParams } from "@/lib/table-query"
 import { Button } from "@/components/ui/button"
 import { PageInlineSlot, PageTitleSlot } from "@/components/layout/PageTitleSlot"
 import { useToast } from "@/components/ui/toast"
@@ -80,6 +82,9 @@ interface CurrentUser {
 }
 
 type BulkAction = "disable" | "enable" | "delete" | "adjust_balance"
+interface PaginatedResult<T> { items: T[]; total: number; page: number; page_size: number }
+const pageSize = 30
+const emptyTableQuery = (): TableQuery => ({ filters: {} })
 
 export default function Users() {
   const { language, t } = useI18n()
@@ -90,6 +95,8 @@ export default function Users() {
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [page, setPage] = useState(1)
+  const [tableQuery, setTableQuery] = useState<TableQuery>(emptyTableQuery)
   const [selectedIDs, setSelectedIDs] = useState<number[]>([])
   const [balanceAdjustment, setBalanceAdjustment] = useState("")
   const [isBalanceDialogOpen, setIsBalanceDialogOpen] = useState(false)
@@ -104,14 +111,22 @@ export default function Users() {
   })
   const canManageRoles = Boolean(currentUser?.is_admin)
 
-  const { data: users = [], isLoading } = useQuery<User[]>({
-    queryKey: ["users"],
+  const { data: userPage = emptyPage<User>(page), isLoading } = useQuery<PaginatedResult<User>>({
+    queryKey: ["users", page, search, roleFilter, statusFilter, tableQuery],
     enabled: settings !== undefined,
     queryFn: async () => {
-      const res = await api.get("/users")
-      return Array.isArray(res.data) ? res.data : []
+      const res = await api.get("/users", { params: {
+        page,
+        page_size: pageSize,
+        ...(search.trim() ? { search: search.trim() } : {}),
+        ...(roleFilter !== "all" ? { role: roleFilter } : {}),
+        ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+        ...tableQueryParams(tableQuery),
+      } })
+      return paginatedResult<User>(res.data, page)
     },
   })
+  const users = userPage.items
 
   const { data: groups = [] } = useQuery<Group[]>({
     queryKey: ["groups"],
@@ -122,18 +137,8 @@ export default function Users() {
     },
   })
 
-  const visibleUsers = useMemo(() => {
-    const keyword = search.trim().toLowerCase()
-    return users.filter((user) => {
-      const matchesSearch = !keyword || [user.id, user.username, user.email].some((value) => String(value).toLowerCase().includes(keyword))
-      const matchesRole = roleFilter === "all" || user.role === roleFilter || (roleFilter === "super_admin" && user.is_admin)
-      const matchesStatus = statusFilter === "all" || (statusFilter === "disabled" ? user.is_disabled : !user.is_disabled)
-      return matchesSearch && matchesRole && matchesStatus
-    })
-  }, [roleFilter, search, statusFilter, users])
-
   const selectedCount = selectedIDs.length
-  const allVisibleSelected = visibleUsers.length > 0 && visibleUsers.every((user) => selectedIDs.includes(user.id))
+  const allVisibleSelected = users.length > 0 && users.every((user) => selectedIDs.includes(user.id))
 
   const invalidateUsers = () => {
     queryClient.invalidateQueries({ queryKey: ["users"] })
@@ -211,7 +216,7 @@ export default function Users() {
   }
 
   const toggleVisibleUsers = () => {
-    const visibleIDs = visibleUsers.filter((user) => canManageRoles || !isStaffUser(user)).map((user) => user.id)
+    const visibleIDs = users.filter((user) => canManageRoles || !isStaffUser(user)).map((user) => user.id)
     setSelectedIDs((ids) => allVisibleSelected ? ids.filter((id) => !visibleIDs.includes(id)) : [...new Set([...ids, ...visibleIDs])])
   }
 
@@ -233,9 +238,9 @@ export default function Users() {
 
       <PageTitleSlot />
       <div className="flex flex-col gap-3 rounded-md border bg-card p-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.searchPlaceholder} className="pl-9" /></div>
-        <Select value={roleFilter} onValueChange={setRoleFilter}><SelectTrigger className="w-full sm:w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{copy.allRoles}</SelectItem><SelectItem value="super_admin">超级管理员</SelectItem><SelectItem value="admin">{copy.admins}</SelectItem><SelectItem value="support">客服</SelectItem><SelectItem value="operations">运维</SelectItem><SelectItem value="sales">销售</SelectItem><SelectItem value="user">{copy.members}</SelectItem></SelectContent></Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger className="w-full sm:w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{copy.allStatuses}</SelectItem><SelectItem value="active">{copy.active}</SelectItem><SelectItem value="disabled">{copy.disabled}</SelectItem></SelectContent></Select>
+        <div className="relative flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder={copy.searchPlaceholder} className="pl-9" /></div>
+        <Select value={roleFilter} onValueChange={(value) => { setRoleFilter(value); setPage(1) }}><SelectTrigger className="w-full sm:w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{copy.allRoles}</SelectItem><SelectItem value="super_admin">超级管理员</SelectItem><SelectItem value="admin">{copy.admins}</SelectItem><SelectItem value="support">客服</SelectItem><SelectItem value="operations">运维</SelectItem><SelectItem value="sales">销售</SelectItem><SelectItem value="user">{copy.members}</SelectItem></SelectContent></Select>
+        <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(1) }}><SelectTrigger className="w-full sm:w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{copy.allStatuses}</SelectItem><SelectItem value="active">{copy.active}</SelectItem><SelectItem value="disabled">{copy.disabled}</SelectItem></SelectContent></Select>
       </div>
 
       {selectedCount > 0 && (
@@ -251,25 +256,25 @@ export default function Users() {
       )}
 
       <div className="overflow-x-auto rounded-md border">
-        <Table>
+        <Table onQueryChange={(query) => { setTableQuery(query); setPage(1) }}>
           <TableHeader>
             <TableRow>
               <TableHead className="w-10"><Checkbox checked={allVisibleSelected} onCheckedChange={toggleVisibleUsers} aria-label={copy.selectAll} /></TableHead>
-              <TableHead>{t("common.username")}</TableHead>
-              <TableHead>{t("common.email")}</TableHead>
-              <TableHead>{t("common.group")}</TableHead>
-              <TableHead>{t("common.balance")}</TableHead>
-              <TableHead>{copy.status}</TableHead>
-              <TableHead>{t("common.role")}</TableHead>
+              <TableHead queryKey="username">{t("common.username")}</TableHead>
+              <TableHead queryKey="email">{t("common.email")}</TableHead>
+              <TableHead sortKey="group_id">{t("common.group")}</TableHead>
+              <TableHead sortKey="balance">{t("common.balance")}</TableHead>
+              <TableHead sortKey="is_disabled">{copy.status}</TableHead>
+              <TableHead sortKey="role">{t("common.role")}</TableHead>
               <TableHead className="text-right">{t("common.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <EmptyRow columns={8}>{t("common.loading")}</EmptyRow>
-            ) : visibleUsers.length === 0 ? (
-              <EmptyRow columns={8}>{users.length === 0 ? t("users.noUsers") : copy.noMatches}</EmptyRow>
-            ) : visibleUsers.map((user) => (
+            ) : users.length === 0 ? (
+              <EmptyRow columns={8}>{userPage.total === 0 ? t("users.noUsers") : copy.noMatches}</EmptyRow>
+            ) : users.map((user) => (
               <TableRow key={user.id} data-state={selectedIDs.includes(user.id) ? "selected" : undefined}>
                 <TableCell><Checkbox checked={selectedIDs.includes(user.id)} onCheckedChange={() => toggleUser(user.id)} disabled={!canManageRoles && isStaffUser(user)} aria-label={copy.selectUser.replace("{name}", user.username)} /></TableCell>
                 <TableCell className="font-medium">{user.username}</TableCell>
@@ -289,6 +294,7 @@ export default function Users() {
           </TableBody>
         </Table>
       </div>
+      <Pagination page={userPage.page} pageSize={userPage.page_size} total={userPage.total} onPageChange={setPage} language={language} />
 
       <PageInlineSlot slotKey="primary" />
       <PageInlineSlot slotKey="secondary" />
@@ -336,6 +342,19 @@ function ToggleFields({ isAdmin, isDisabled, canManageRoles, onAdminChange, onDi
 function EmptyRow({ columns, children }: { columns: number; children: React.ReactNode }) {
   return <TableRow><TableCell colSpan={columns} className="py-8 text-center text-muted-foreground">{children}</TableCell></TableRow>
 }
+
+function Pagination({ page, pageSize, total, onPageChange, language }: { page: number; pageSize: number; total: number; onPageChange: (page: number) => void; language: string }) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  return <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground"><span>{page} / {totalPages}</span><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>{language === "zh" ? "上一页" : "Previous"}</Button><Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>{language === "zh" ? "下一页" : "Next"}</Button></div>
+}
+
+function paginatedResult<T>(data: unknown, page: number): PaginatedResult<T> {
+  if (Array.isArray(data)) return { items: data as T[], total: data.length, page, page_size: pageSize }
+  const result = data as Partial<PaginatedResult<T>> | null
+  return { items: Array.isArray(result?.items) ? result.items : [], total: Number(result?.total || 0), page: Number(result?.page || page), page_size: Number(result?.page_size || pageSize) }
+}
+
+function emptyPage<T>(page: number): PaginatedResult<T> { return { items: [], total: 0, page, page_size: pageSize } }
 
 function groupNames(user: User) {
   const names = activeGroupMemberships(user).map((membership) => membership.group?.name).filter((name): name is string => Boolean(name))

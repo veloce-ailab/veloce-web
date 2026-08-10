@@ -15,6 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import type { TableQuery } from "@/components/ui/table"
+import { tableQueryParams } from "@/lib/table-query"
 import { useI18n } from "@/lib/i18n"
 import { formatCurrency, useCurrencyDisplayName } from "@/lib/currency"
 
@@ -76,6 +78,7 @@ interface PaginatedResult<T> {
 }
 
 const pageSize = 25
+const emptyTableQuery = (): TableQuery => ({ filters: {} })
 
 export default function AdminAuditLogs() {
   const { language } = useI18n()
@@ -91,9 +94,11 @@ export default function AdminAuditLogs() {
   const [statusCode, setStatusCode] = useState("")
   const [callPage, setCallPage] = useState(1)
   const [modelName, setModelName] = useState("")
+  const [auditTableQuery, setAuditTableQuery] = useState<TableQuery>(emptyTableQuery)
+  const [callTableQuery, setCallTableQuery] = useState<TableQuery>(emptyTableQuery)
 
   const { data = emptyPage<AuditLog>(page), isLoading } = useQuery<PaginatedResult<AuditLog>>({
-    queryKey: ["audit-logs", page, logType, startDate, endDate, action, path, userID, statusCode],
+    queryKey: ["audit-logs", page, logType, startDate, endDate, action, path, userID, statusCode, auditTableQuery],
     queryFn: async () => {
       const res = await api.get("/audit-logs", {
         params: cleanParams({
@@ -107,15 +112,16 @@ export default function AdminAuditLogs() {
           path,
           user_id: userID,
           status_code: statusCode,
+          ...tableQueryParams(auditTableQuery),
         }),
       })
       return paginatedResult<AuditLog>(res.data, page)
     },
   })
   const { data: callLogs = emptyPage<TokenLog>(callPage), isLoading: isCallLogsLoading } = useQuery<PaginatedResult<TokenLog>>({
-    queryKey: ["admin-call-logs", callPage, startDate, endDate, userID, modelName],
+    queryKey: ["admin-call-logs", callPage, startDate, endDate, userID, modelName, callTableQuery],
     queryFn: async () => {
-      const res = await api.get("/logs", { params: cleanParams({ paginated: 1, page: callPage, page_size: pageSize, start_time: startDate, end_time: endDate, user_id: userID, model_name: modelName }) })
+      const res = await api.get("/logs", { params: cleanParams({ paginated: 1, page: callPage, page_size: pageSize, start_time: startDate, end_time: endDate, user_id: userID, model_name: modelName, ...tableQueryParams(callTableQuery) }) })
       return paginatedResult<TokenLog>(res.data, callPage)
     },
   })
@@ -131,6 +137,8 @@ export default function AdminAuditLogs() {
     setModelName("")
     setPage(1)
     setCallPage(1)
+    setAuditTableQuery(emptyTableQuery())
+    setCallTableQuery(emptyTableQuery())
   }
 
   const totalPages = Math.max(1, Math.ceil(data.total / data.page_size))
@@ -179,18 +187,18 @@ export default function AdminAuditLogs() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-md border">
-            <Table>
+            <Table onQueryChange={(query) => { setAuditTableQuery(query); setPage(1) }}>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{copy.time}</TableHead>
-                  <TableHead>{copy.type}</TableHead>
-                  <TableHead>{copy.action}</TableHead>
-                  <TableHead>{copy.user}</TableHead>
-                  <TableHead>{copy.request}</TableHead>
-                  <TableHead>{copy.statusCode}</TableHead>
-                  <TableHead>{copy.ip}</TableHead>
-                  <TableHead>{copy.duration}</TableHead>
-                  <TableHead>{copy.message}</TableHead>
+                  <TableHead sortKey="created_at">{copy.time}</TableHead>
+                  <TableHead sortKey="log_type">{copy.type}</TableHead>
+                  <TableHead sortKey="action">{copy.action}</TableHead>
+                  <TableHead sortKey="user_id">{copy.user}</TableHead>
+                  <TableHead sortKey="path">{copy.request}</TableHead>
+                  <TableHead queryKey="status_code">{copy.statusCode}</TableHead>
+                  <TableHead sortKey="ip_address">{copy.ip}</TableHead>
+                  <TableHead sortKey="duration_ms">{copy.duration}</TableHead>
+                  <TableHead sortKey="message">{copy.message}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -239,7 +247,7 @@ export default function AdminAuditLogs() {
             <FilterInput label={copy.userID} value={userID} type="number" placeholder="1" onChange={(value) => { setUserID(value); setCallPage(1) }} />
             <FilterInput label="模型" value={modelName} placeholder="gpt-4o" onChange={(value) => { setModelName(value); setCallPage(1) }} />
           </div>
-          <div className="overflow-x-auto rounded-md border"><Table><TableHeader><TableRow><TableHead>{copy.time}</TableHead><TableHead>{copy.user}</TableHead><TableHead>路由</TableHead><TableHead>模型</TableHead><TableHead>Token</TableHead><TableHead>价格</TableHead><TableHead>倍率</TableHead><TableHead>算式</TableHead><TableHead>FRT / 总耗时</TableHead><TableHead>费用</TableHead></TableRow></TableHeader><TableBody>
+          <div className="overflow-x-auto rounded-md border"><Table onQueryChange={(query) => { setCallTableQuery(query); setCallPage(1) }}><TableHeader><TableRow><TableHead sortKey="created_at">{copy.time}</TableHead><TableHead sortKey="user_id">{copy.user}</TableHead><TableHead sortKey="channel_id">路由</TableHead><TableHead queryKey="model_name">模型</TableHead><TableHead sortKey="total_tokens">Token</TableHead><TableHead sortKey="input_price">价格</TableHead><TableHead sortKey="group_multiplier">倍率</TableHead><TableHead sortKey="pricing_formula">算式</TableHead><TableHead sortKey="response_time_ms">FRT / 总耗时</TableHead><TableHead sortKey="cost">费用</TableHead></TableRow></TableHeader><TableBody>
             {isCallLogsLoading ? <TableRow><TableCell colSpan={10} className="py-8 text-center text-muted-foreground">{copy.loading}</TableCell></TableRow> : callLogs.items.length === 0 ? <TableRow><TableCell colSpan={10} className="py-8 text-center text-muted-foreground">暂无调用记录</TableCell></TableRow> : callLogs.items.map((log) => <TableRow key={log.id}><TableCell className="whitespace-nowrap text-xs">{formatDateTime(log.created_at)}</TableCell><TableCell>#{log.user_id}</TableCell><TableCell className="whitespace-nowrap text-xs">key {log.api_key_id || "-"}<br />{log.user_channel_id || "-"} / {log.channel_id}</TableCell><TableCell>{log.model_name}</TableCell><TableCell className="whitespace-nowrap text-xs">in {log.input_tokens} · out {log.output_tokens}<br /><span className="text-muted-foreground">cache {log.cached_input_tokens || 0} / write {log.cache_write_input_tokens || 0} / 1h {log.cache_write_1h_input_tokens || 0}</span></TableCell><TableCell className="whitespace-nowrap text-xs">in {formatPrice(log.input_price, currency)}<br />out {formatPrice(log.output_price, currency)}<br />cache {formatPrice(log.cached_input_price, currency)}</TableCell><TableCell className="whitespace-nowrap text-xs">组 {formatMultiplier(log.group_multiplier)}×<br />通道 {formatMultiplier(log.user_channel_multiplier)}×</TableCell><TableCell className="max-w-80 truncate text-xs" title={log.pricing_formula}>{log.pricing_formula || "-"}</TableCell><TableCell className="whitespace-nowrap text-xs">{formatLatency(log.first_response_time_ms)}<br />{formatLatency(log.response_time_ms)}</TableCell><TableCell>{formatCurrency(log.cost, currency)}</TableCell></TableRow>)}
           </TableBody></Table></div>
           <div className="flex items-center justify-between text-sm text-muted-foreground"><span>{copy.total.replace("{total}", String(callLogs.total))}</span><div className="flex items-center gap-2"><Button variant="outline" size="sm" disabled={callPage <= 1} onClick={() => setCallPage((value) => value - 1)}>{copy.prev}</Button><span>{callPage} / {Math.max(1, Math.ceil(callLogs.total / callLogs.page_size))}</span><Button variant="outline" size="sm" disabled={callPage >= Math.max(1, Math.ceil(callLogs.total / callLogs.page_size))} onClick={() => setCallPage((value) => value + 1)}>{copy.next}</Button></div></div>

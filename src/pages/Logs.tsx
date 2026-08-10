@@ -16,6 +16,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import type { TableQuery } from "@/components/ui/table"
+import { tableQueryParams } from "@/lib/table-query"
 import { useI18n } from "@/lib/i18n"
 import type { PublicSettings } from "@/lib/public-settings"
 import { isPersonalMode, withPublicSettingsDefaults } from "@/lib/public-settings"
@@ -82,6 +84,7 @@ interface CheckInRecord {
 type DetailTab = "calls" | "payments" | "checkIns"
 
 const pageSize = 20
+const emptyTableQuery = (): TableQuery => ({ filters: {} })
 
 export default function Logs() {
   const { language, t } = useI18n()
@@ -93,6 +96,9 @@ export default function Logs() {
   const [callPage, setCallPage] = useState(1)
   const [paymentPage, setPaymentPage] = useState(1)
   const [checkInPage, setCheckInPage] = useState(1)
+  const [callTableQuery, setCallTableQuery] = useState<TableQuery>(emptyTableQuery)
+  const [paymentTableQuery, setPaymentTableQuery] = useState<TableQuery>(emptyTableQuery)
+  const [checkInTableQuery, setCheckInTableQuery] = useState<TableQuery>(emptyTableQuery)
   const { data: settings } = useQuery<PublicSettings>({
     queryKey: ["public-settings"],
     queryFn: async () => {
@@ -119,24 +125,24 @@ export default function Logs() {
     },
   })
   const { data: logs = emptyPage<TokenLog>(callPage), isLoading: isLogsLoading } = useQuery<PaginatedResult<TokenLog>>({
-    queryKey: ["logs", "user", "paged", callPage, startDate, endDate, apiKeyID],
+    queryKey: ["logs", "user", "paged", callPage, startDate, endDate, apiKeyID, callTableQuery],
     queryFn: async () => {
-      const res = await api.get("/user/logs", { params: logQueryParams(callPage, startDate, endDate, apiKeyID) })
+      const res = await api.get("/user/logs", { params: { ...logQueryParams(callPage, startDate, endDate, apiKeyID), ...tableQueryParams(callTableQuery) } })
       return paginatedResult<TokenLog>(res.data, callPage)
     },
   })
   const { data: paymentOrders = emptyPage<PaymentOrder>(paymentPage), isLoading: isPaymentOrdersLoading } = useQuery<PaginatedResult<PaymentOrder>>({
-    queryKey: ["payment-orders", "paged", paymentPage, startDate, endDate],
+    queryKey: ["payment-orders", "paged", paymentPage, startDate, endDate, paymentTableQuery],
     queryFn: async () => {
-      const res = await api.get("/user/payment/orders", { params: pageQueryParams(paymentPage, startDate, endDate) })
+      const res = await api.get("/user/payment/orders", { params: { ...pageQueryParams(paymentPage, startDate, endDate), ...tableQueryParams(paymentTableQuery) } })
       return paginatedResult<PaymentOrder>(res.data, paymentPage)
     },
     enabled: !personalMode,
   })
   const { data: checkInRecords = emptyPage<CheckInRecord>(checkInPage), isLoading: isCheckInRecordsLoading } = useQuery<PaginatedResult<CheckInRecord>>({
-    queryKey: ["check-in-records", "paged", checkInPage, startDate, endDate],
+    queryKey: ["check-in-records", "paged", checkInPage, startDate, endDate, checkInTableQuery],
     queryFn: async () => {
-      const res = await api.get("/user/check-in/records", { params: pageQueryParams(checkInPage, startDate, endDate) })
+      const res = await api.get("/user/check-in/records", { params: { ...pageQueryParams(checkInPage, startDate, endDate), ...tableQueryParams(checkInTableQuery) } })
       return paginatedResult<CheckInRecord>(res.data, checkInPage)
     },
   })
@@ -148,6 +154,9 @@ export default function Logs() {
     setCallPage(1)
     setPaymentPage(1)
     setCheckInPage(1)
+    setCallTableQuery(emptyTableQuery())
+    setPaymentTableQuery(emptyTableQuery())
+    setCheckInTableQuery(emptyTableQuery())
   }
 
   const setDateFilter = (field: "start" | "end", value: string) => {
@@ -204,6 +213,7 @@ export default function Logs() {
             }}
             onReset={resetFilters}
             onPageChange={setCallPage}
+            onQueryChange={(query) => { setCallTableQuery(query); setCallPage(1) }}
           />
         )}
         {!personalMode && activeTab === "payments" && (
@@ -217,6 +227,7 @@ export default function Logs() {
             onEndDateChange={(value) => setDateFilter("end", value)}
             onReset={resetFilters}
             onPageChange={setPaymentPage}
+            onQueryChange={(query) => { setPaymentTableQuery(query); setPaymentPage(1) }}
           />
         )}
         {activeTab === "checkIns" && (
@@ -230,6 +241,7 @@ export default function Logs() {
             onEndDateChange={(value) => setDateFilter("end", value)}
             onReset={resetFilters}
             onPageChange={setCheckInPage}
+            onQueryChange={(query) => { setCheckInTableQuery(query); setCheckInPage(1) }}
           />
         )}
       </TabTransition>
@@ -253,6 +265,7 @@ function CallRecordsTable({
   onAPIKeyChange,
   onReset,
   onPageChange,
+  onQueryChange,
 }: {
   logs: PaginatedResult<TokenLog>
   loading: boolean
@@ -268,6 +281,7 @@ function CallRecordsTable({
   onAPIKeyChange: (value: string) => void
   onReset: () => void
   onPageChange: (page: number) => void
+  onQueryChange: (query: TableQuery) => void
 }) {
   return (
     <div className="space-y-3">
@@ -293,19 +307,19 @@ function CallRecordsTable({
         }
       />
       <div className="overflow-x-auto rounded-md border">
-        <Table>
+        <Table onQueryChange={onQueryChange}>
           <TableHeader>
             <TableRow>
-              <TableHead>{t("common.time")}</TableHead>
-              <TableHead>{t("usage.apiKey")}</TableHead>
-              <TableHead>{t("usage.userChannel")} / {t("usage.upstreamChannel")}</TableHead>
-              <TableHead>{t("common.model")}</TableHead>
-              <TableHead>{t("common.tokens")}</TableHead>
-              <TableHead>{copy.pricing}</TableHead>
-              <TableHead>{copy.multipliers}</TableHead>
-              <TableHead>{copy.formula}</TableHead>
-              <TableHead>{copy.performance}</TableHead>
-              <TableHead>{t("common.cost")}</TableHead>
+              <TableHead sortKey="created_at">{t("common.time")}</TableHead>
+              <TableHead queryKey="api_key_id">{t("usage.apiKey")}</TableHead>
+              <TableHead sortKey="channel_id">{t("usage.userChannel")} / {t("usage.upstreamChannel")}</TableHead>
+              <TableHead queryKey="model_name">{t("common.model")}</TableHead>
+              <TableHead sortKey="total_tokens">{t("common.tokens")}</TableHead>
+              <TableHead sortKey="input_price">{copy.pricing}</TableHead>
+              <TableHead sortKey="group_multiplier">{copy.multipliers}</TableHead>
+              <TableHead sortKey="pricing_formula">{copy.formula}</TableHead>
+              <TableHead sortKey="response_time_ms">{copy.performance}</TableHead>
+              <TableHead sortKey="cost">{t("common.cost")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -373,6 +387,7 @@ function PaymentOrdersTable({
   onEndDateChange,
   onReset,
   onPageChange,
+  onQueryChange,
 }: {
   orders: PaginatedResult<PaymentOrder>
   loading: boolean
@@ -383,6 +398,7 @@ function PaymentOrdersTable({
   onEndDateChange: (value: string) => void
   onReset: () => void
   onPageChange: (page: number) => void
+  onQueryChange: (query: TableQuery) => void
 }) {
   return (
     <div className="space-y-3">
@@ -395,16 +411,16 @@ function PaymentOrdersTable({
         onReset={onReset}
       />
       <div className="overflow-x-auto rounded-md border">
-        <Table>
+        <Table onQueryChange={onQueryChange}>
           <TableHeader>
             <TableRow>
-              <TableHead>{copy.orderNo}</TableHead>
-              <TableHead>{copy.amount}</TableHead>
-              <TableHead>{copy.rmbAmount}</TableHead>
-              <TableHead>{copy.method}</TableHead>
-              <TableHead>{copy.status}</TableHead>
-              <TableHead>{copy.createdAt}</TableHead>
-              <TableHead>{copy.paidAt}</TableHead>
+              <TableHead queryKey="order_no">{copy.orderNo}</TableHead>
+              <TableHead queryKey="amount">{copy.amount}</TableHead>
+              <TableHead queryKey="rmb_amount">{copy.rmbAmount}</TableHead>
+              <TableHead sortKey="method">{copy.method}</TableHead>
+              <TableHead sortKey="status">{copy.status}</TableHead>
+              <TableHead sortKey="created_at">{copy.createdAt}</TableHead>
+              <TableHead sortKey="paid_at">{copy.paidAt}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -443,6 +459,7 @@ function CheckInRecordsTable({
   onEndDateChange,
   onReset,
   onPageChange,
+  onQueryChange,
 }: {
   records: PaginatedResult<CheckInRecord>
   loading: boolean
@@ -453,6 +470,7 @@ function CheckInRecordsTable({
   onEndDateChange: (value: string) => void
   onReset: () => void
   onPageChange: (page: number) => void
+  onQueryChange: (query: TableQuery) => void
 }) {
   return (
     <div className="space-y-3">
@@ -465,13 +483,13 @@ function CheckInRecordsTable({
         onReset={onReset}
       />
       <div className="overflow-x-auto rounded-md border">
-        <Table>
+        <Table onQueryChange={onQueryChange}>
           <TableHeader>
             <TableRow>
-              <TableHead>{copy.date}</TableHead>
-              <TableHead>{copy.reward}</TableHead>
-              <TableHead>{copy.streak}</TableHead>
-              <TableHead>{copy.rewardKind}</TableHead>
+              <TableHead queryKey="check_in_date">{copy.date}</TableHead>
+              <TableHead queryKey="reward_amount">{copy.reward}</TableHead>
+              <TableHead sortKey="streak_days">{copy.streak}</TableHead>
+              <TableHead sortKey="reward_kind">{copy.rewardKind}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

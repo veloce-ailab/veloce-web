@@ -28,6 +28,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import type { TableQuery } from "@/components/ui/table"
+import { tableQueryParams } from "@/lib/table-query"
 import { cn } from "@/lib/utils"
 
 interface PriceTier {
@@ -79,6 +81,10 @@ interface ModelConfig {
   video_billing_config: VideoBillingConfig
   enabled: boolean
 }
+
+interface PaginatedResult<T> { items: T[]; total: number; page: number; page_size: number }
+const pageSize = 30
+const emptyTableQuery = (): TableQuery => ({ filters: {} })
 
 interface UpstreamChannel {
   id: number
@@ -154,17 +160,28 @@ export default function Models() {
   const [providerFilter, setProviderFilter] = useState("all")
   const [quotaFilter, setQuotaFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [modelPage, setModelPage] = useState(1)
+  const [modelTableQuery, setModelTableQuery] = useState<TableQuery>(emptyTableQuery)
   // 当前预览的来源：channel=上级渠道（加价），community=社区站点（原价）
   const [syncSource, setSyncSource] = useState<"channel" | "community">("channel")
   const [browserFallback, setBrowserFallback] = useState<BrowserSyncFallback | null>(null)
 
-  const { data: models = [], isLoading } = useQuery<ModelConfig[]>({
-    queryKey: ["admin-models-page"],
+  const { data: modelsPage = emptyPage<ModelConfig>(modelPage), isLoading } = useQuery<PaginatedResult<ModelConfig>>({
+    queryKey: ["admin-models-page", modelPage, modelSearch, providerFilter, quotaFilter, statusFilter, modelTableQuery],
     queryFn: async () => {
-      const res = await api.get("/models")
-      return Array.isArray(res.data) ? res.data : []
+      const res = await api.get("/models", { params: {
+        page: modelPage,
+        page_size: pageSize,
+        ...(modelSearch.trim() ? { search: modelSearch.trim() } : {}),
+        ...(providerFilter !== "all" ? { provider: providerFilter } : {}),
+        ...(quotaFilter !== "all" ? { quota_type: quotaFilter } : {}),
+        ...(statusFilter !== "all" ? { enabled: statusFilter === "enabled" } : {}),
+        ...tableQueryParams(modelTableQuery),
+      } })
+      return paginatedResult<ModelConfig>(res.data, modelPage)
     },
   })
+  const models = modelsPage.items
 
   const { data: channels = [] } = useQuery<UpstreamChannel[]>({
     queryKey: ["admin-upstream-channels"],
@@ -173,13 +190,7 @@ export default function Models() {
       return Array.isArray(res.data) ? res.data : []
     },
   })
-  const filteredModels = models.filter((item) => {
-    const query = modelSearch.trim().toLowerCase()
-    return (!query || item.model_name.toLowerCase().includes(query) || item.provider.toLowerCase().includes(query)) &&
-      (providerFilter === "all" || item.provider === providerFilter) &&
-      (quotaFilter === "all" || String(item.quota_type) === quotaFilter) &&
-      (statusFilter === "all" || (statusFilter === "enabled" ? item.enabled : !item.enabled))
-  })
+  const filteredModels = models
   const providerOptions = Array.from(new Set(models.map((item) => item.provider).filter(Boolean))).sort()
 
   const invalidate = () => {
@@ -408,22 +419,22 @@ export default function Models() {
         </CardHeader>
         <CardContent>
           <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="relative"><Search size={16} className="pointer-events-none absolute left-3 top-3 text-muted-foreground" /><Input className="pl-9" value={modelSearch} onChange={(event) => setModelSearch(event.target.value)} placeholder={language === "zh" ? "搜索模型或供应商" : "Search model or provider"} /></div>
-            <Select value={providerFilter} onValueChange={setProviderFilter}><SelectTrigger><SelectValue placeholder={copy.provider} /></SelectTrigger><SelectContent><SelectItem value="all">{language === "zh" ? "全部供应商" : "All providers"}</SelectItem>{providerOptions.map((provider) => <SelectItem key={provider} value={provider}>{provider}</SelectItem>)}</SelectContent></Select>
-            <Select value={quotaFilter} onValueChange={setQuotaFilter}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{language === "zh" ? "全部计费类型" : "All billing types"}</SelectItem><SelectItem value="0">{copy.quotaToken}</SelectItem><SelectItem value="1">{copy.quotaPerCall}</SelectItem><SelectItem value="100">{copy.quotaVideo}</SelectItem></SelectContent></Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{language === "zh" ? "全部状态" : "All statuses"}</SelectItem><SelectItem value="enabled">{language === "zh" ? "已启用" : "Enabled"}</SelectItem><SelectItem value="disabled">{language === "zh" ? "已禁用" : "Disabled"}</SelectItem></SelectContent></Select>
+            <div className="relative"><Search size={16} className="pointer-events-none absolute left-3 top-3 text-muted-foreground" /><Input className="pl-9" value={modelSearch} onChange={(event) => { setModelSearch(event.target.value); setModelPage(1) }} placeholder={language === "zh" ? "搜索模型或供应商" : "Search model or provider"} /></div>
+            <Select value={providerFilter} onValueChange={(value) => { setProviderFilter(value); setModelPage(1) }}><SelectTrigger><SelectValue placeholder={copy.provider} /></SelectTrigger><SelectContent><SelectItem value="all">{language === "zh" ? "全部供应商" : "All providers"}</SelectItem>{providerOptions.map((provider) => <SelectItem key={provider} value={provider}>{provider}</SelectItem>)}</SelectContent></Select>
+            <Select value={quotaFilter} onValueChange={(value) => { setQuotaFilter(value); setModelPage(1) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{language === "zh" ? "全部计费类型" : "All billing types"}</SelectItem><SelectItem value="0">{copy.quotaToken}</SelectItem><SelectItem value="1">{copy.quotaPerCall}</SelectItem><SelectItem value="100">{copy.quotaVideo}</SelectItem></SelectContent></Select>
+            <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setModelPage(1) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{language === "zh" ? "全部状态" : "All statuses"}</SelectItem><SelectItem value="enabled">{language === "zh" ? "已启用" : "Enabled"}</SelectItem><SelectItem value="disabled">{language === "zh" ? "已禁用" : "Disabled"}</SelectItem></SelectContent></Select>
           </div>
-          <Table>
+          <Table onQueryChange={(query) => { setModelTableQuery(query); setModelPage(1) }}>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10"><Checkbox checked={filteredModels.length > 0 && filteredModels.every((item) => selectedModels.includes(item.id))} onCheckedChange={(checked) => setSelectedModels((current) => checked ? Array.from(new Set([...current, ...filteredModels.map((item) => item.id)])) : current.filter((id) => !filteredModels.some((item) => item.id === id)))} /></TableHead>
-                <TableHead>{t("common.model")}</TableHead>
-                <TableHead>{copy.provider}</TableHead>
-                <TableHead>{copy.quotaType}</TableHead>
-                <TableHead>{t("admin.inputPrice")}</TableHead>
-                <TableHead>{t("admin.outputPrice")}</TableHead>
-                <TableHead>{copy.cachedInputPrice}</TableHead>
-                <TableHead>{t("channels.status")}</TableHead>
+                <TableHead queryKey="model_name">{t("common.model")}</TableHead>
+                <TableHead sortKey="provider">{copy.provider}</TableHead>
+                <TableHead sortKey="quota_type">{copy.quotaType}</TableHead>
+                <TableHead sortKey="input_price">{t("admin.inputPrice")}</TableHead>
+                <TableHead sortKey="output_price">{t("admin.outputPrice")}</TableHead>
+                <TableHead sortKey="cached_input_price">{copy.cachedInputPrice}</TableHead>
+                <TableHead sortKey="enabled">{t("channels.status")}</TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -470,6 +481,7 @@ export default function Models() {
               )}
             </TableBody>
           </Table>
+          <Pagination page={modelsPage.page} pageSize={modelsPage.page_size} total={modelsPage.total} onPageChange={setModelPage} language={language} />
         </CardContent>
       </Card>
 
@@ -877,6 +889,19 @@ function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
     </TableRow>
   )
 }
+
+function Pagination({ page, pageSize, total, onPageChange, language }: { page: number; pageSize: number; total: number; onPageChange: (page: number) => void; language: string }) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  return <div className="mt-3 flex items-center justify-end gap-2 text-sm text-muted-foreground"><span>{page} / {totalPages}</span><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>{language === "zh" ? "上一页" : "Previous"}</Button><Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>{language === "zh" ? "下一页" : "Next"}</Button></div>
+}
+
+function paginatedResult<T>(data: unknown, page: number): PaginatedResult<T> {
+  if (Array.isArray(data)) return { items: data as T[], total: data.length, page, page_size: pageSize }
+  const result = data as Partial<PaginatedResult<T>> | null
+  return { items: Array.isArray(result?.items) ? result.items : [], total: Number(result?.total || 0), page: Number(result?.page || page), page_size: Number(result?.page_size || pageSize) }
+}
+
+function emptyPage<T>(page: number): PaginatedResult<T> { return { items: [], total: 0, page, page_size: pageSize } }
 
 function FieldLabel({ label, children }: { label: string; children: React.ReactNode }) {
   return (

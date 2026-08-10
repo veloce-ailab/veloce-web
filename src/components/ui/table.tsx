@@ -6,11 +6,20 @@ import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
-type TableProps = React.ComponentProps<"table"> & { sortable?: boolean }
+type TableProps = React.ComponentProps<"table"> & {
+  sortable?: boolean
+  onQueryChange?: (query: TableQuery) => void
+}
 
 type TableSort = { column: number; direction: "asc" | "desc" } | null
+export type TableQuery = {
+  sortBy?: string
+  sortOrder?: "asc" | "desc"
+  filters: Record<string, string[]>
+}
 type TableContextValue = {
   sortable: boolean
+  serverSide: boolean
   sort: TableSort
   setSort: (sort: TableSort) => void
   filters: Record<number, string[]>
@@ -18,13 +27,15 @@ type TableContextValue = {
   hiddenColumns: Set<number>
   setColumnHidden: (column: number, hidden: boolean) => void
   columnForElement: (element: HTMLElement | null) => number
+  sortKeyForColumn: (column: number) => string
+  filterKeyForColumn: (column: number) => string
   labelForColumn: (column: number) => string
   valuesForColumn: (column: number) => string[]
 }
 
 const TableContext = React.createContext<TableContextValue | null>(null)
 
-function Table({ className, sortable = true, ...props }: TableProps) {
+function Table({ className, sortable = true, onQueryChange, ...props }: TableProps) {
   const tableRef = React.useRef<HTMLTableElement>(null)
   const [sort, setSort] = React.useState<TableSort>(null)
   const [filters, setFilters] = React.useState<Record<number, string[]>>({})
@@ -46,11 +57,11 @@ function Table({ className, sortable = true, ...props }: TableProps) {
       header.style.display = hidden ? "none" : ""
     })
     Array.from(body.rows).forEach((row) => {
-      const matched = Object.entries(filters).every(([column, allowed]) => allowed.length === 0 || allowed.includes(tableCellText(row.cells[Number(column)])))
+      const matched = onQueryChange ? true : Object.entries(filters).every(([column, allowed]) => allowed.length === 0 || allowed.includes(tableCellText(row.cells[Number(column)])))
       row.style.display = matched ? "" : "none"
       Array.from(row.cells).forEach((cell, column) => { cell.style.display = hiddenColumns.has(column) ? "none" : "" })
     })
-    if (!sort) return
+    if (!sort || onQueryChange) return
     const rows = Array.from(body.rows).map((row, index) => ({ row, index }))
     rows.sort((left, right) => {
       const comparison = compareTableValues(left.row.cells[sort.column]?.textContent || "", right.row.cells[sort.column]?.textContent || "")
@@ -59,25 +70,51 @@ function Table({ className, sortable = true, ...props }: TableProps) {
     rows.forEach(({ row }) => body.appendChild(row))
   })
 
+  const sortKeyForColumn = React.useCallback((column: number) => tableRef.current?.tHead?.rows[0]?.cells[column]?.dataset.tableSortKey || "", [])
+  const filterKeyForColumn = React.useCallback((column: number) => tableRef.current?.tHead?.rows[0]?.cells[column]?.dataset.tableFilterKey || "", [])
+  const notifyQueryChange = React.useCallback((nextSort: TableSort, nextFilters: Record<number, string[]>) => {
+    if (!onQueryChange) return
+    const filtersByKey: Record<string, string[]> = {}
+    Object.entries(nextFilters).forEach(([column, values]) => {
+      const key = filterKeyForColumn(Number(column))
+      if (key && values.length > 0) filtersByKey[key] = values
+    })
+    onQueryChange({
+      sortBy: nextSort ? sortKeyForColumn(nextSort.column) || undefined : undefined,
+      sortOrder: nextSort?.direction,
+      filters: filtersByKey,
+    })
+  }, [filterKeyForColumn, onQueryChange, sortKeyForColumn])
+
   const context = React.useMemo<TableContextValue>(() => ({
     sortable,
+    serverSide: Boolean(onQueryChange),
     sort,
-    setSort,
+    setSort: (nextSort) => {
+      setSort(nextSort)
+      notifyQueryChange(nextSort, filters)
+    },
     filters,
-    setFilter: (column, values) => setFilters((current) => ({ ...current, [column]: values })),
+    setFilter: (column, values) => {
+      const nextFilters = { ...filters, [column]: values }
+      setFilters(nextFilters)
+      notifyQueryChange(sort, nextFilters)
+    },
     hiddenColumns,
     setColumnHidden: (column, hidden) => setHiddenColumns((current) => { const next = new Set(current); if (hidden) next.add(column); else next.delete(column); return next }),
     columnForElement: (element) => {
       const header = element?.closest("th")
       return header ? Array.from(header.parentElement?.children || []).indexOf(header) : -1
     },
+    sortKeyForColumn,
+    filterKeyForColumn,
     labelForColumn: (column) => tableRef.current?.tHead?.rows[0]?.cells[column]?.textContent?.trim() || "",
     valuesForColumn: (column) => {
       const body = tableRef.current?.tBodies[0]
       if (!body || column < 0) return []
       return Array.from(new Set(Array.from(body.rows).map((row) => tableCellText(row.cells[column])).filter(Boolean))).sort((a, b) => compareTableValues(a, b))
     },
-  }), [filters, hiddenColumns, sort, sortable])
+  }), [filterKeyForColumn, filters, hiddenColumns, notifyQueryChange, onQueryChange, sortKeyForColumn, sort, sortable])
 
   return (
     <TableContext.Provider value={context}><div
@@ -141,7 +178,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   )
 }
 
-function TableHead({ className, children, ...props }: React.ComponentProps<"th">) {
+function TableHead({ className, children, queryKey, sortKey = queryKey, filterKey = queryKey, ...props }: React.ComponentProps<"th"> & { queryKey?: string; sortKey?: string; filterKey?: string }) {
   const table = React.useContext(TableContext)
   const headerRef = React.useRef<HTMLTableCellElement>(null)
   const [column, setColumn] = React.useState(-1)
@@ -151,11 +188,13 @@ function TableHead({ className, children, ...props }: React.ComponentProps<"th">
     setInteractive(Boolean(headerRef.current?.querySelector("button:not([data-table-column-menu]),input,[role=checkbox]")))
   }, [table])
   const direction = column >= 0 && table?.sort?.column === column ? table.sort.direction : ""
-  const content = interactive || !table ? children : <ColumnMenu table={table} column={column} direction={direction}>{children}</ColumnMenu>
+  const content = interactive || !table || (table.serverSide && !sortKey && !filterKey) ? children : <ColumnMenu table={table} column={column} direction={direction} canSort={!table.serverSide || Boolean(sortKey)} canFilter={!table.serverSide || Boolean(filterKey)}>{children}</ColumnMenu>
   return (
     <th
       ref={headerRef}
       data-slot="table-head"
+      data-table-sort-key={sortKey}
+      data-table-filter-key={filterKey}
       className={cn(
         "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
         className
@@ -165,14 +204,14 @@ function TableHead({ className, children, ...props }: React.ComponentProps<"th">
   )
 }
 
-function ColumnMenu({ table, column, direction, children }: { table: TableContextValue; column: number; direction: "asc" | "desc" | ""; children: React.ReactNode }) {
+function ColumnMenu({ table, column, direction, canSort, canFilter, children }: { table: TableContextValue; column: number; direction: "asc" | "desc" | ""; canSort: boolean; canFilter: boolean; children: React.ReactNode }) {
   const { language } = useI18n()
   const values = table.valuesForColumn(column)
   const selected = table.filters[column] || []
   const label = (zh: string, en: string) => language === "zh" ? zh : en
   const setSort = (next: "asc" | "desc") => { if (column >= 0) table.setSort({ column, direction: next }) }
   const toggleFilter = (value: string) => table.setFilter(column, selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value])
-  return <DropdownMenu><DropdownMenuTrigger asChild><button data-table-column-menu type="button" className={cn("flex h-9 w-full items-center gap-2 rounded-md px-1 text-left hover:bg-muted/50", direction && "bg-primary/10 text-primary")}><span className="min-w-0 flex-1 truncate">{children}</span>{direction === "asc" ? <ArrowUp className="h-4 w-4 shrink-0" /> : direction === "desc" ? <ArrowDown className="h-4 w-4 shrink-0" /> : <ArrowUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />}</button></DropdownMenuTrigger><DropdownMenuContent className="w-64" align="start"><DropdownMenuItem onSelect={() => setSort("asc")}><ArrowUp />{label("升序", "Sort ascending")}</DropdownMenuItem><DropdownMenuItem onSelect={() => setSort("desc")}><ArrowDown />{label("降序", "Sort descending")}</DropdownMenuItem>{values.length > 0 && <><DropdownMenuSeparator /><DropdownMenuSub><DropdownMenuSubTrigger><Filter />{label("筛选", "Filter")}</DropdownMenuSubTrigger><DropdownMenuSubContent className="max-h-72 w-64 overflow-y-auto">{values.slice(0, 50).map((value) => <DropdownMenuCheckboxItem key={value} checked={selected.includes(value)} onCheckedChange={() => toggleFilter(value)}>{value}</DropdownMenuCheckboxItem>)}{selected.length > 0 && <><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => table.setFilter(column, [])}><X />{label("清除筛选", "Clear filter")}</DropdownMenuItem></>}</DropdownMenuSubContent></DropdownMenuSub></>}<DropdownMenuSeparator /><DropdownMenuItem onSelect={() => table.setColumnHidden(column, true)}><EyeOff />{label("隐藏", "Hide")}</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+  return <DropdownMenu><DropdownMenuTrigger asChild><button data-table-column-menu type="button" className={cn("flex h-9 w-full items-center gap-2 rounded-md px-1 text-left hover:bg-muted/50", direction && "bg-primary/10 text-primary")}><span className="min-w-0 flex-1 truncate">{children}</span>{direction === "asc" ? <ArrowUp className="h-4 w-4 shrink-0" /> : direction === "desc" ? <ArrowDown className="h-4 w-4 shrink-0" /> : <ArrowUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />}</button></DropdownMenuTrigger><DropdownMenuContent className="w-64" align="start">{canSort && <><DropdownMenuItem onSelect={() => setSort("asc")}><ArrowUp />{label("升序", "Sort ascending")}</DropdownMenuItem><DropdownMenuItem onSelect={() => setSort("desc")}><ArrowDown />{label("降序", "Sort descending")}</DropdownMenuItem></>}{canFilter && values.length > 0 && <><DropdownMenuSeparator /><DropdownMenuSub><DropdownMenuSubTrigger><Filter />{label("筛选", "Filter")}</DropdownMenuSubTrigger><DropdownMenuSubContent className="max-h-72 w-64 overflow-y-auto">{values.slice(0, 50).map((value) => <DropdownMenuCheckboxItem key={value} checked={selected.includes(value)} onCheckedChange={() => toggleFilter(value)}>{value}</DropdownMenuCheckboxItem>)}{selected.length > 0 && <><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => table.setFilter(column, [])}><X />{label("清除筛选", "Clear filter")}</DropdownMenuItem></>}</DropdownMenuSubContent></DropdownMenuSub></>}<DropdownMenuSeparator /><DropdownMenuItem onSelect={() => table.setColumnHidden(column, true)}><EyeOff />{label("隐藏", "Hide")}</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
 }
 
 function HiddenColumnsMenu({ table }: { table: TableContextValue }) {
