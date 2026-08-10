@@ -581,13 +581,13 @@ const systemSettingsFieldsByTab: Partial<Record<SystemTab, readonly (keyof Syste
   basic: ["system_mode", "site_name", "base_url", "icon_url", "home_iframe_url", "footer_text"],
   theme: Object.keys(defaultThemeColorValues) as ThemeColorFieldKey[],
   themeSettings: ["theme_background_image", "theme_custom_css"],
-  billing: ["pricing_endpoint_enabled", "referral_enabled", "referral_commission_rate", "group_multiplier_mode"],
+  billing: ["pricing_endpoint_enabled", "referral_enabled", "referral_commission_rate", "group_multiplier_mode", "new_user_gift_credit"],
   payment: ["payment_channels", "payment_enabled", "payment_currency_display_name", "payment_usd_to_rmb_rate", "payment_min_recharge_amount", "payment_recharge_presets"],
   checkIn: ["checkin_enabled", "checkin_daily_reward", "checkin_timezone", "checkin_streak_enabled", "checkin_streak_cycle_days", "checkin_streak_rewards", "checkin_random_enabled", "checkin_random_min", "checkin_random_max"],
   security: ["rate_limit_enabled", "rate_limit_requests_per_minute", "rate_limit_burst", "sensitive_filter_enabled", "sensitive_filter_scope", "ssrf_protection_enabled", "ssrf_allow_private_networks", "sensitive_words", "ssrf_allowed_hosts"],
   redis: ["redis_enabled", "redis_tls_enabled", "redis_address", "redis_database", "redis_username", "redis_password", "redis_password_clear"],
   auth: ["oidc_enabled", "passkey_enabled", "password_login_enabled", "password_registration_enabled", "token_api_enabled", "password_hcaptcha_enabled", "auth_agreement_mode", "hcaptcha_site_key", "hcaptcha_secret", "oidc_issuer", "oidc_client_id", "oidc_client_secret", "oidc_redirect_url", "oauth_providers"],
-  email: ["email_verification_required", "registration_email_suffixes", "registration_email_routing", "smtp_host", "smtp_port", "smtp_username", "smtp_password", "smtp_from"],
+  email: ["email_verification_required", "notifications_enabled", "registration_email_suffixes", "registration_email_routing", "smtp_host", "smtp_port", "smtp_username", "smtp_password", "smtp_from"],
   sms: ["sms_enabled", "sms_login_enabled", "sms_binding_required", "sms_provider", "sms_aliyun_access_key_id", "sms_aliyun_access_key_secret", "sms_aliyun_sign_name", "sms_aliyun_template_code", "sms_tencent_secret_id", "sms_tencent_secret_key", "sms_tencent_sdk_app_id", "sms_tencent_sign_name", "sms_tencent_template_id", "sms_tencent_region", "sms_smsbao_username", "sms_smsbao_password", "sms_smsbao_sign_name", "sms_smsbao_template"],
   content: ["announcement", "about_html", "privacy_policy_url", "terms_url", "privacy_policy", "terms"],
   topNavigation: ["top_nav_enabled", "top_nav_items"],
@@ -1293,6 +1293,7 @@ export default function SystemManagement({ section = "general", initialTab }: { 
                   placeholder={copy.referralRatePlaceholder}
                   onChange={(value) => updateField("referral_commission_rate", value)}
                 />
+                <TextField label={language === "zh" ? "新用户赠送额度" : "New user gift credit"} value={form.new_user_gift_credit} placeholder="0" type="number" onChange={(value) => updateField("new_user_gift_credit", value)} />
                 <label className="block space-y-2 text-sm">
                   <span className="font-medium">{copy.groupMultiplierMode}</span>
                   <Select value={String((form.group_multiplier_mode || "min") || "__shadcn_empty__")} onValueChange={(value) => updateField("group_multiplier_mode", (value === "__shadcn_empty__" ? "" : value))}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
@@ -1451,6 +1452,7 @@ export default function SystemManagement({ section = "general", initialTab }: { 
         <SettingsPanel title={copy.email}>
           <div className="grid gap-4 lg:grid-cols-2">
             <ToggleField label={copy.emailVerificationRequired} checked={form.email_verification_required} onChange={(checked) => updateField("email_verification_required", checked)} />
+            <ToggleField label={language === "zh" ? "启用用户通知" : "Enable user notifications"} checked={form.notifications_enabled} onChange={(checked) => updateField("notifications_enabled", checked)} />
             <TextareaField label="允许注册的邮箱后缀" value={form.registration_email_suffixes} placeholder="example.com, company.cn（留空表示不限制）" onChange={(value) => updateField("registration_email_suffixes", value)} />
           </div>
           <div className="border-t pt-4">

@@ -3,7 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Download, Edit, Plus, Trash } from "lucide-react"
+import { Download, Edit, Plus, Search, Trash } from "lucide-react"
 import type { AxiosError } from "axios"
 import api from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
@@ -34,6 +34,7 @@ interface PriceTier {
   min_tokens: number
   price: string | number
   condition?: string
+  operator?: string
 }
 
 interface VideoResolutionPrice {
@@ -149,6 +150,10 @@ export default function Models() {
   const [syncPreview, setSyncPreview] = useState<SyncPreview | null>(null)
   const [selectedModelNames, setSelectedModelNames] = useState<string[]>([])
   const [selectedModels, setSelectedModels] = useState<number[]>([])
+  const [modelSearch, setModelSearch] = useState("")
+  const [providerFilter, setProviderFilter] = useState("all")
+  const [quotaFilter, setQuotaFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState("all")
   // 当前预览的来源：channel=上级渠道（加价），community=社区站点（原价）
   const [syncSource, setSyncSource] = useState<"channel" | "community">("channel")
   const [browserFallback, setBrowserFallback] = useState<BrowserSyncFallback | null>(null)
@@ -168,6 +173,14 @@ export default function Models() {
       return Array.isArray(res.data) ? res.data : []
     },
   })
+  const filteredModels = models.filter((item) => {
+    const query = modelSearch.trim().toLowerCase()
+    return (!query || item.model_name.toLowerCase().includes(query) || item.provider.toLowerCase().includes(query)) &&
+      (providerFilter === "all" || item.provider === providerFilter) &&
+      (quotaFilter === "all" || String(item.quota_type) === quotaFilter) &&
+      (statusFilter === "all" || (statusFilter === "enabled" ? item.enabled : !item.enabled))
+  })
+  const providerOptions = Array.from(new Set(models.map((item) => item.provider).filter(Boolean))).sort()
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["admin-models-page"] })
@@ -394,10 +407,16 @@ export default function Models() {
           </div>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="relative"><Search size={16} className="pointer-events-none absolute left-3 top-3 text-muted-foreground" /><Input className="pl-9" value={modelSearch} onChange={(event) => setModelSearch(event.target.value)} placeholder={language === "zh" ? "搜索模型或供应商" : "Search model or provider"} /></div>
+            <Select value={providerFilter} onValueChange={setProviderFilter}><SelectTrigger><SelectValue placeholder={copy.provider} /></SelectTrigger><SelectContent><SelectItem value="all">{language === "zh" ? "全部供应商" : "All providers"}</SelectItem>{providerOptions.map((provider) => <SelectItem key={provider} value={provider}>{provider}</SelectItem>)}</SelectContent></Select>
+            <Select value={quotaFilter} onValueChange={setQuotaFilter}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{language === "zh" ? "全部计费类型" : "All billing types"}</SelectItem><SelectItem value="0">{copy.quotaToken}</SelectItem><SelectItem value="1">{copy.quotaPerCall}</SelectItem><SelectItem value="100">{copy.quotaVideo}</SelectItem></SelectContent></Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{language === "zh" ? "全部状态" : "All statuses"}</SelectItem><SelectItem value="enabled">{language === "zh" ? "已启用" : "Enabled"}</SelectItem><SelectItem value="disabled">{language === "zh" ? "已禁用" : "Disabled"}</SelectItem></SelectContent></Select>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-10"><Checkbox checked={models.length > 0 && selectedModels.length === models.length} onCheckedChange={(checked) => setSelectedModels(checked ? models.map((item) => item.id) : [])} /></TableHead>
+                <TableHead className="w-10"><Checkbox checked={filteredModels.length > 0 && filteredModels.every((item) => selectedModels.includes(item.id))} onCheckedChange={(checked) => setSelectedModels((current) => checked ? Array.from(new Set([...current, ...filteredModels.map((item) => item.id)])) : current.filter((id) => !filteredModels.some((item) => item.id === id)))} /></TableHead>
                 <TableHead>{t("common.model")}</TableHead>
                 <TableHead>{copy.provider}</TableHead>
                 <TableHead>{copy.quotaType}</TableHead>
@@ -411,10 +430,10 @@ export default function Models() {
             <TableBody>
               {isLoading ? (
                 <EmptyRow colSpan={9} text={t("common.loading")} />
-              ) : models.length === 0 ? (
+              ) : filteredModels.length === 0 ? (
                 <EmptyRow colSpan={9} text={t("admin.noModels")} />
               ) : (
-                models.map((item) => (
+                filteredModels.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell><Checkbox checked={selectedModels.includes(item.id)} onCheckedChange={(checked) => setSelectedModels((current) => checked ? [...current, item.id] : current.filter((id) => id !== item.id))} /></TableCell>
                     <TableCell className="font-mono text-xs">{item.model_name}</TableCell>
@@ -1013,7 +1032,7 @@ function TierSummary({ tiers }: { tiers?: PriceTier[] }) {
   }
   return (
     <div className="mt-1 text-xs text-muted-foreground">
-      {normalized.map((tier) => `${tierConditionLabel(tier.condition, copy)} ${formatTokenCount(tier.min_tokens)}: ${formatModelPrice(tier.price, currency)}`).join(" / ")}
+      {normalized.map((tier) => `${tierConditionLabel(tier.condition, copy)} ${tierOperatorLabel(tier.operator)} ${formatTokenCount(tier.min_tokens)}: ${formatModelPrice(tier.price, currency)}`).join(" / ")}
     </div>
   )
 }
@@ -1066,12 +1085,13 @@ function TierEditor({
       ) : (
         <div className="space-y-2">
           {normalized.map((tier, index) => (
-            <div key={`${tier.condition || "current"}-${tier.min_tokens}-${index}`} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(150px,1.3fr)_minmax(120px,1fr)_minmax(120px,1fr)_auto]">
+            <div key={`${tier.condition || "current"}-${tier.operator || ">="}-${tier.min_tokens}-${index}`} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(150px,1.3fr)_88px_minmax(120px,1fr)_minmax(120px,1fr)_auto]">
               <Select value={String((tier.condition || "") || "__shadcn_empty__")} onValueChange={(value) => updateTier(index, { condition: (value === "__shadcn_empty__" ? "" : value) })}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue /></SelectTrigger><SelectContent>
                 {tierConditionOptions(copy).map((option) => (
-                  <SelectItem key={option.value || "current"} value={String(option.value)}>{option.label}</SelectItem>
+                  <SelectItem key={option.value || "current"} value={option.value || "__shadcn_empty__"}>{option.label}</SelectItem>
                 ))}
               </SelectContent></Select>
+              <Select value={normalizeTierOperator(tier.operator)} onValueChange={(value) => updateTier(index, { operator: value })}><SelectTrigger className="h-10 w-full"><SelectValue /></SelectTrigger><SelectContent>{[">=", ">", "<=", "<"].map((operator) => <SelectItem key={operator} value={operator}>{operator}</SelectItem>)}</SelectContent></Select>
               <Input
                 type="number"
                 value={String(tier.min_tokens)}
@@ -1200,12 +1220,21 @@ function normalizePriceTiers(tiers: PriceTier[]) {
     if (!Number.isFinite(minTokens) || !Number.isFinite(price) || price < 0) {
       continue
     }
-    byMinTokens.set(`${condition}:${minTokens}`, { min_tokens: minTokens, price, condition })
+    const operator = normalizeTierOperator(tier.operator)
+    byMinTokens.set(`${condition}:${operator}:${minTokens}`, { min_tokens: minTokens, price, condition, operator })
   }
   return Array.from(byMinTokens.values()).sort((a, b) => {
     const conditionSort = tierConditionSort(a.condition) - tierConditionSort(b.condition)
     return conditionSort || a.min_tokens - b.min_tokens
   })
+}
+
+function normalizeTierOperator(operator?: string) {
+  return [">=", ">", "<=", "<"].includes(operator || "") ? operator! : ">="
+}
+
+function tierOperatorLabel(operator?: string) {
+  return normalizeTierOperator(operator)
 }
 
 function normalizeVideoBillingConfig(config?: VideoBillingConfig): VideoBillingConfig {

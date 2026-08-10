@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { PageInlineSlot, PageTitleSlot } from "@/components/layout/PageTitleSlot"
 import type { PublicSettings } from "@/lib/public-settings"
 import { withPublicSettingsDefaults } from "@/lib/public-settings"
@@ -46,12 +47,28 @@ interface PasskeyCredential {
   created_at: string
 }
 
-export type SettingsSection = "profile" | "security"
+export type SettingsSection = "profile" | "security" | "notifications"
+
+interface NotificationSettings {
+  email_enabled: boolean
+  webhook_url: string
+  low_balance_enabled: boolean
+  low_balance_threshold: string | number
+  api_key_expired_enabled: boolean
+  subscription_reset_enabled: boolean
+  subscription_expired_enabled: boolean
+}
+
+interface NotificationSettingsResponse {
+  enabled: boolean
+  email: string
+  settings: NotificationSettings
+}
 
 export default function Settings({ section = "profile" }: { section?: SettingsSection }) {
   const { language, t } = useI18n()
   const copy = language === "zh" ? zhSettingsCopy : enSettingsCopy
-  const sectionTitle = section === "security" ? copy.securitySettings : t("settings.title")
+  const sectionTitle = section === "security" ? copy.securitySettings : section === "notifications" ? (language === "zh" ? "通知设置" : "Notification settings") : t("settings.title")
   const queryClient = useQueryClient()
   const [bindStatus, setBindStatus] = useState("")
   const [currentPassword, setCurrentPassword] = useState("")
@@ -67,6 +84,7 @@ export default function Settings({ section = "profile" }: { section?: SettingsSe
   const [avatarPreview, setAvatarPreview] = useState("")
   const [avatarStatus, setAvatarStatus] = useState("")
   const avatarInputRef = useRef<HTMLInputElement>(null)
+  const [notificationDraft, setNotificationDraft] = useState<NotificationSettings | null>(null)
 
   const { data: user, isLoading } = useQuery<CurrentUser>({
     queryKey: ["me"],
@@ -98,6 +116,20 @@ export default function Settings({ section = "profile" }: { section?: SettingsSe
       return Array.isArray(res.data) ? res.data : []
     },
     enabled: publicSettings.passkey_enabled,
+  })
+  const { data: notificationResponse, isLoading: notificationsLoading } = useQuery<NotificationSettingsResponse>({
+    queryKey: ["notification-settings"],
+    queryFn: async () => (await api.get("/user/notification-settings")).data,
+    enabled: section === "notifications",
+  })
+
+  useEffect(() => {
+    if (notificationResponse?.settings) setNotificationDraft(notificationResponse.settings)
+  }, [notificationResponse])
+
+  const saveNotifications = useMutation({
+    mutationFn: async () => api.put("/user/notification-settings", notificationDraft),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notification-settings"] }),
   })
 
   useEffect(() => {
@@ -496,6 +528,25 @@ export default function Settings({ section = "profile" }: { section?: SettingsSe
         </Card>
 
         </>}
+        {section === "notifications" && (
+          <Card className="lg:col-span-2">
+            <CardHeader><CardTitle>{language === "zh" ? "通知方式与事件" : "Delivery and events"}</CardTitle></CardHeader>
+            <CardContent className="space-y-5">
+              {notificationsLoading ? <div className="text-sm text-muted-foreground">{t("common.loading")}</div> : !notificationResponse?.enabled ? (
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">{language === "zh" ? "平台尚未开启通知功能。" : "Notifications are not enabled by the administrator."}</div>
+              ) : notificationDraft && <>
+                <NotificationToggle label={language === "zh" ? "邮件通知" : "Email notifications"} description={notificationResponse.email || "-"} checked={notificationDraft.email_enabled} onCheckedChange={(value) => setNotificationDraft({ ...notificationDraft, email_enabled: value })} />
+                <label className="block space-y-2 text-sm"><span className="font-medium">Webhook URL</span><Input type="url" value={notificationDraft.webhook_url} placeholder="https://example.com/webhook" onChange={(event) => setNotificationDraft({ ...notificationDraft, webhook_url: event.target.value })} /></label>
+                <NotificationToggle label={language === "zh" ? "余额低于阈值" : "Low balance"} checked={notificationDraft.low_balance_enabled} onCheckedChange={(value) => setNotificationDraft({ ...notificationDraft, low_balance_enabled: value })} />
+                {notificationDraft.low_balance_enabled && <label className="block max-w-xs space-y-2 text-sm"><span className="font-medium">{language === "zh" ? "余额阈值" : "Balance threshold"}</span><Input min="0" step="0.000001" type="number" value={String(notificationDraft.low_balance_threshold)} onChange={(event) => setNotificationDraft({ ...notificationDraft, low_balance_threshold: event.target.value })} /></label>}
+                <NotificationToggle label={language === "zh" ? "令牌过期" : "API key expired"} checked={notificationDraft.api_key_expired_enabled} onCheckedChange={(value) => setNotificationDraft({ ...notificationDraft, api_key_expired_enabled: value })} />
+                <NotificationToggle label={language === "zh" ? "套餐额度重置" : "Subscription reset"} checked={notificationDraft.subscription_reset_enabled} onCheckedChange={(value) => setNotificationDraft({ ...notificationDraft, subscription_reset_enabled: value })} />
+                <NotificationToggle label={language === "zh" ? "套餐过期" : "Subscription expired"} checked={notificationDraft.subscription_expired_enabled} onCheckedChange={(value) => setNotificationDraft({ ...notificationDraft, subscription_expired_enabled: value })} />
+                <Button disabled={saveNotifications.isPending} onClick={() => saveNotifications.mutate()}>{language === "zh" ? "保存通知设置" : "Save notification settings"}</Button>
+              </>}
+            </CardContent>
+          </Card>
+        )}
         {section === "profile" && <PageInlineSlot className="lg:col-span-2" slotKey="secondary" />}
       </div>
     </div>
@@ -516,6 +567,10 @@ function canChangePassword(
     return Boolean(emailCode.trim())
   }
   return Boolean(currentPassword)
+}
+
+function NotificationToggle({ label, description, checked, onCheckedChange }: { label: string; description?: string; checked: boolean; onCheckedChange: (value: boolean) => void }) {
+  return <div className="flex items-center justify-between gap-4 border-b pb-4"><div><div className="text-sm font-medium">{label}</div>{description && <div className="mt-1 text-xs text-muted-foreground">{description}</div>}</div><Switch checked={checked} onCheckedChange={onCheckedChange} /></div>
 }
 
 function apiErrorMessage(error: unknown, fallback: string) {

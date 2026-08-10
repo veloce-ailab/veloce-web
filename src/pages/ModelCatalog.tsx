@@ -23,6 +23,7 @@ interface PriceTier {
   min_tokens: number
   price: string | number
   condition?: string
+  operator?: string
 }
 
 interface PublicModel {
@@ -407,7 +408,7 @@ function TierSummary({ tiers }: { tiers?: PriceTier[] }) {
   }
   return (
     <div className="mt-1 text-xs text-muted-foreground">
-      {normalized.map((tier) => `${tierConditionLabel(tier.condition, language)} ${formatTokenCount(tier.min_tokens)}: ${formatPrice(tier.price, currency)}`).join(" / ")}
+      {normalized.map((tier) => `${tierConditionLabel(tier.condition, language)} ${tierOperatorLabel(tier.operator)} ${formatTokenCount(tier.min_tokens)}: ${formatPrice(tier.price, currency)}`).join(" / ")}
     </div>
   )
 }
@@ -562,9 +563,18 @@ function normalizePriceTiers(tiers: PriceTier[]) {
       continue
     }
     const condition = normalizeTierCondition(tier.condition || "")
-    byMinTokens.set(`${condition}:${minTokens}`, { min_tokens: minTokens, price, condition })
+    const operator = normalizeTierOperator(tier.operator)
+    byMinTokens.set(`${condition}:${operator}:${minTokens}`, { min_tokens: minTokens, price, condition, operator })
   }
   return Array.from(byMinTokens.values()).sort((a, b) => tierConditionSort(a.condition) - tierConditionSort(b.condition) || a.min_tokens - b.min_tokens)
+}
+
+function normalizeTierOperator(operator?: string) {
+  return [">=", ">", "<=", "<"].includes(operator || "") ? operator! : ">="
+}
+
+function tierOperatorLabel(operator?: string) {
+  return normalizeTierOperator(operator)
 }
 
 function normalizeTierCondition(condition: string) {

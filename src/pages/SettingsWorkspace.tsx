@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { CreditCard, LogOut, Shield, UserCircle } from "lucide-react"
+import { Bell, CreditCard, LogOut, Shield, UserCircle } from "lucide-react"
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom"
 import { useState } from "react"
 import Settings, { type SettingsSection } from "./Settings"
@@ -69,6 +69,7 @@ export default function SettingsWorkspace() {
                 <Route index element={<Navigate to="profile" replace />} />
                 <Route path="profile" element={<Settings section="profile" />} />
                 <Route path="security" element={<Settings section="security" />} />
+                <Route path="notifications" element={<Settings section="notifications" />} />
                 <Route path="wallet" element={<Wallet />} />
                 <Route path="*" element={<Navigate to="profile" replace />} />
               </Routes>
@@ -91,6 +92,7 @@ function SettingsSidebar({ pathname, copy, onLogout, className, onNavigate }: {
   const items: SettingsNavItem[] = [
     { href: "/settings/profile", section: "profile", label: copy.account, icon: UserCircle, colorClass: "bg-blue-500/15 text-blue-600 dark:bg-blue-400/15 dark:text-blue-300" },
     { href: "/settings/security", section: "security", label: copy.security, icon: Shield, colorClass: "bg-emerald-500/15 text-emerald-600 dark:bg-emerald-400/15 dark:text-emerald-300" },
+    { href: "/settings/notifications", section: "notifications", label: copy.notifications, icon: Bell, colorClass: "bg-violet-500/15 text-violet-600 dark:bg-violet-400/15 dark:text-violet-300" },
     { href: "/settings/wallet", label: copy.wallet, icon: CreditCard, colorClass: "bg-amber-500/15 text-amber-600 dark:bg-amber-400/15 dark:text-amber-300" },
   ]
 
@@ -132,7 +134,7 @@ function SettingsSidebar({ pathname, copy, onLogout, className, onNavigate }: {
 }
 
 function settingsWorkspaceCopy(language: string) {
-  if (language === "zh") return { title: "设置", account: "账户", security: "安全", wallet: "钱包", signOut: "退出登录", openMenu: "打开设置菜单", closeMenu: "关闭设置菜单" }
-  if (language === "ja") return { title: "設定", account: "アカウント", security: "セキュリティ", wallet: "ウォレット", signOut: "ログアウト", openMenu: "設定メニューを開く", closeMenu: "設定メニューを閉じる" }
-  return { title: "Settings", account: "Account", security: "Security", wallet: "Wallet", signOut: "Sign out", openMenu: "Open settings menu", closeMenu: "Close settings menu" }
+  if (language === "zh") return { title: "设置", account: "账户", security: "安全", notifications: "通知", wallet: "钱包", signOut: "退出登录", openMenu: "打开设置菜单", closeMenu: "关闭设置菜单" }
+  if (language === "ja") return { title: "設定", account: "アカウント", security: "セキュリティ", notifications: "通知", wallet: "ウォレット", signOut: "ログアウト", openMenu: "設定メニューを開く", closeMenu: "設定メニューを閉じる" }
+  return { title: "Settings", account: "Account", security: "Security", notifications: "Notifications", wallet: "Wallet", signOut: "Sign out", openMenu: "Open settings menu", closeMenu: "Close settings menu" }
 }

@@ -37,11 +37,11 @@ export function APIKeyImportDialog({
         <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs leading-5 text-muted-foreground">
           {copy.securityNotice}
         </div>
-        <Tabs defaultValue="codex" className="gap-4">
-          <TabsList className="h-auto w-full justify-start overflow-x-auto">
-            <TabsTrigger value="codex" className="shrink-0 px-3">Codex CLI</TabsTrigger>
-            <TabsTrigger value="claude" className="shrink-0 px-3">Claude Code</TabsTrigger>
-            <TabsTrigger value="opencode" className="shrink-0 px-3">OpenCode</TabsTrigger>
+        <Tabs defaultValue="codex">
+          <TabsList>
+            <TabsTrigger value="codex">Codex CLI</TabsTrigger>
+            <TabsTrigger value="claude">Claude Code</TabsTrigger>
+            <TabsTrigger value="opencode">OpenCode</TabsTrigger>
           </TabsList>
 
           <TabsContent value="codex" className="space-y-4">

@@ -94,6 +94,8 @@ export interface PublicSettings {
   password_hcaptcha_enabled: boolean
   hcaptcha_site_key: string
   email_verification_required: boolean
+  notifications_enabled: boolean
+  new_user_gift_credit: string
   sms_enabled: boolean
   sms_login_enabled: boolean
   sms_binding_required: boolean
@@ -195,6 +197,8 @@ export const defaultPublicSettings: PublicSettings = {
   password_hcaptcha_enabled: false,
   hcaptcha_site_key: "",
   email_verification_required: false,
+  notifications_enabled: false,
+  new_user_gift_credit: "0",
   sms_enabled: false,
   sms_login_enabled: false,
   sms_binding_required: false,

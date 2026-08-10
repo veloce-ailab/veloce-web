@@ -44,6 +44,7 @@ interface APIKey {
   quota_limit: string | number
   quota_remaining?: string | number | null
   enabled: boolean
+  expires_at?: string | null
   usage: UsageStats
   last_used_at?: string | null
   usage_reset_at?: string | null
@@ -70,6 +71,8 @@ interface APIKeyPayload {
   allowed_ips: string[]
   quota_limit?: string
   enabled?: boolean
+  expires_at?: string
+  clear_expiration?: boolean
 }
 
 export default function APIKeys() {
@@ -85,6 +88,7 @@ export default function APIKeys() {
   const [newModels, setNewModels] = useState<string[]>([])
   const [newIPs, setNewIPs] = useState("")
   const [newQuotaLimit, setNewQuotaLimit] = useState("")
+  const [newExpiresAt, setNewExpiresAt] = useState("")
   const [selectedKeys, setSelectedKeys] = useState<number[]>([])
   const { data: settings } = useQuery<PublicSettings>({
     queryKey: ["public-settings"],
@@ -122,6 +126,7 @@ export default function APIKeys() {
         allowed_user_channels: personalMode ? [] : newChannelIds,
         allowed_ips: parseCSV(newIPs),
         quota_limit: personalMode ? "0" : parseQuotaLimit(newQuotaLimit),
+        ...(newExpiresAt ? { expires_at: new Date(newExpiresAt).toISOString() } : {}),
       }
       const res = await api.post("/user/api-keys", payload)
       return res.data
@@ -134,6 +139,7 @@ export default function APIKeys() {
       setNewModels([])
       setNewIPs("")
       setNewQuotaLimit("")
+      setNewExpiresAt("")
       queryClient.invalidateQueries({ queryKey: ["api-keys"] })
     },
     onError: () => error(t("settings.keyCreateFailed")),
@@ -227,6 +233,7 @@ export default function APIKeys() {
     setNewModels([])
     setNewIPs("")
     setNewQuotaLimit("")
+    setNewExpiresAt("")
   }
 
   const confirmDeleteAPIKey = async (id: number, name: string) => {
@@ -302,6 +309,9 @@ export default function APIKeys() {
                 onModelsChange={setNewModels}
               />
             )}
+            <FieldLabel label={language === "zh" ? "过期时间" : "Expiration time"}>
+              <Input type="datetime-local" value={newExpiresAt} onChange={(event) => setNewExpiresAt(event.target.value)} />
+            </FieldLabel>
             <FieldLabel label={t("settings.allowedIPs")}>
               <Input value={newIPs} onChange={(e) => setNewIPs(e.target.value)} placeholder={t("settings.ipsPlaceholder")} />
             </FieldLabel>
@@ -381,6 +391,7 @@ function APIKeyRow({
   const [models, setModels] = useState(allowedModels)
   const [ips, setIPs] = useState(allowedIPs.join(","))
   const [quotaLimit, setQuotaLimit] = useState(quotaInputValue(apiKey.quota_limit))
+  const [expiresAt, setExpiresAt] = useState(dateTimeLocalValue(apiKey.expires_at))
 
   const payload = (enabled = apiKey.enabled): APIKeyPayload => ({
     name,
@@ -389,6 +400,7 @@ function APIKeyRow({
     allowed_ips: parseCSV(ips),
     quota_limit: personalMode ? "0" : parseQuotaLimit(quotaLimit),
     enabled,
+    ...(expiresAt ? { expires_at: new Date(expiresAt).toISOString(), clear_expiration: false } : { clear_expiration: true }),
   })
 
   const resetConfigState = () => {
@@ -397,6 +409,7 @@ function APIKeyRow({
     setModels(stringArray(apiKey.allowed_models))
     setIPs(stringArray(apiKey.allowed_ips).join(","))
     setQuotaLimit(quotaInputValue(apiKey.quota_limit))
+    setExpiresAt(dateTimeLocalValue(apiKey.expires_at))
   }
 
   const saveConfig = () => {
@@ -468,6 +481,9 @@ function APIKeyRow({
         <UsageBox label={t("settings.totalCost")} value={formatCost(apiKey.usage.total_cost, currency)} />
         {!personalMode && <UsageBox label={t("settings.quotaRemaining")} value={formatQuotaRemaining(apiKey, t("settings.unlimitedQuota"), currency)} />}
       </div>
+      <div className="text-xs text-muted-foreground">
+        {language === "zh" ? "过期时间" : "Expires at"}: {apiKey.expires_at ? new Date(apiKey.expires_at).toLocaleString() : (language === "zh" ? "永不过期" : "Never")}
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
         <div>
@@ -512,6 +528,9 @@ function APIKeyRow({
                 onModelsChange={setModels}
               />
             )}
+            <FieldLabel label={language === "zh" ? "过期时间" : "Expiration time"}>
+              <Input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
+            </FieldLabel>
             <FieldLabel label={t("settings.allowedIPs")}>
               <Input value={ips} onChange={(e) => setIPs(e.target.value)} placeholder={t("settings.ipsPlaceholder")} />
             </FieldLabel>
@@ -812,6 +831,7 @@ function normalizeAPIKey(value: unknown): APIKey {
     quota_remaining:
       typeof item.quota_remaining === "string" || typeof item.quota_remaining === "number" ? item.quota_remaining : null,
     enabled: Boolean(item.enabled),
+    expires_at: typeof item.expires_at === "string" ? item.expires_at : null,
     usage: normalizeUsage(item.usage),
     last_used_at: typeof item.last_used_at === "string" ? item.last_used_at : null,
     usage_reset_at: typeof item.usage_reset_at === "string" ? item.usage_reset_at : null,
@@ -861,6 +881,14 @@ function quotaInputValue(value: string | number) {
     return ""
   }
   return String(value)
+}
+
+function dateTimeLocalValue(value?: string | null) {
+  if (!value) return ""
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+  const offset = date.getTimezoneOffset() * 60_000
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16)
 }
 
 function formatQuotaRemaining(apiKey: APIKey, unlimitedLabel: string, currency: string) {
