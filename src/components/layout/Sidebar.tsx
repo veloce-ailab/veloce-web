@@ -8,6 +8,7 @@ import type { TranslationKey } from "@/lib/i18n"
 import type { PublicSettings } from "@/lib/public-settings"
 import { withPublicSettingsDefaults } from "@/lib/public-settings"
 import { cn } from "@/lib/utils"
+import { Sidebar as ShadcnSidebar, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarRail, useSidebar } from "@/components/ui/sidebar"
 
 interface CurrentUser {
   is_admin: boolean
@@ -79,7 +80,7 @@ const adminMenuItems: MenuItem[] = [
   },
 ]
 
-export function Sidebar({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
+export function AppSidebar({ className, onNavigate, mobile = false }: { className?: string; onNavigate?: () => void; mobile?: boolean }) {
   const location = useLocation()
   const { data: user } = useQuery<CurrentUser>({
     queryKey: ["me"],
@@ -111,10 +112,9 @@ export function Sidebar({ className, onNavigate }: { className?: string; onNavig
 		.filter((item) => (!item.settingKey || publicSettings[item.settingKey] !== false) && (!item.personalOnly || personalMode))
   const pluginItems = pluginSidebarItems(pluginExtensions)
 
-  return (
-    <div className={cn("flex h-full w-56 flex-col border-r bg-card", className)}>
-      <nav className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-        <div className="flex flex-col gap-1">
+  const menu = (
+    <nav className="min-h-0 flex-1 overflow-y-auto p-3">
+      <SidebarMenu>
           {visibleUserItems.map((item) => (
             <SidebarLink key={item.path} item={item} active={location.pathname === item.path} onNavigate={onNavigate} />
           ))}
@@ -136,10 +136,13 @@ export function Sidebar({ className, onNavigate }: { className?: string; onNavig
           {pluginItems.map((item) => (
             <SidebarLink key={item.path} item={item} active={location.pathname === item.path || location.pathname.startsWith(item.path + "/")} onNavigate={onNavigate} />
           ))}
-        </div>
-      </nav>
-    </div>
+      </SidebarMenu>
+    </nav>
   )
+
+  if (mobile) return <div className={cn("flex h-full w-64 flex-col border-r bg-card", className)}>{menu}</div>
+
+  return <ShadcnSidebar className={className}><SidebarContent>{menu}</SidebarContent><SidebarRail /></ShadcnSidebar>
 }
 
 function SidebarLink({
@@ -154,25 +157,28 @@ function SidebarLink({
   onNavigate?: () => void
 }) {
   const { t } = useI18n()
+  const { open } = useSidebar()
   const isExpanded = active && Boolean(item.children?.length)
   const label = item.label || (item.labelKey ? t(item.labelKey) : item.path)
   return (
-    <div>
+    <SidebarMenuItem>
       <Link
         to={item.path}
         onClick={onNavigate}
+        title={!open ? label : undefined}
         className={cn(
-          "flex items-center gap-3 rounded-2xl px-3 py-2 transition-colors text-sm font-medium",
+          "flex h-10 items-center gap-3 rounded-md px-2.5 transition-colors text-sm font-medium",
+          !open && "justify-center px-0",
           active ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-muted"
         )}
         >
         <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-xl transition-colors", active ? "bg-primary-foreground/15 text-primary-foreground" : item.colorClass || "bg-muted text-muted-foreground")}>
           <item.icon size={16} />
         </span>
-        <span className="flex-1">{label}</span>
-        {item.children && <ChevronDown size={14} className={cn("transition-transform", isExpanded && "rotate-180")} />}
+        {open && <span className="flex-1 truncate">{label}</span>}
+        {open && item.children && <ChevronDown size={14} className={cn("transition-transform", isExpanded && "rotate-180")} />}
       </Link>
-      {isExpanded && item.children && (
+      {open && isExpanded && item.children && (
         <div className="mt-1 flex flex-col items-center gap-1">
           {item.children.map((child) => {
             const childActive = currentPath === child.path
@@ -193,7 +199,7 @@ function SidebarLink({
           })}
         </div>
       )}
-    </div>
+    </SidebarMenuItem>
   )
 }
 

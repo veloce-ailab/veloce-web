@@ -1,4 +1,4 @@
-import { Sidebar } from "./Sidebar"
+import { AppSidebar } from "./Sidebar"
 import { PageTransition } from "./PageTransition"
 import { Menu, SlidersHorizontal, UserCircle } from "lucide-react"
 import { Link, Outlet, useLocation } from "react-router-dom"
@@ -16,6 +16,7 @@ import { pageKeyFromPathname } from "@/lib/page-layouts"
 import type { PublicSettings } from "@/lib/public-settings"
 import { parseTopNavItems, withPublicSettingsDefaults } from "@/lib/public-settings"
 import { cn } from "@/lib/utils"
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 
 interface CurrentUser {
   username?: string
@@ -57,12 +58,13 @@ export function Layout() {
       onEditingChange={setIsLayoutEditing}
       saveEndpoint="/settings"
     >
-    <div className="flex h-screen flex-col overflow-hidden bg-background">
+    <SidebarProvider className="h-screen flex-col overflow-hidden bg-background">
       <AppHeader
         publicSettings={publicSettings}
         user={user}
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
+        sidebarTrigger={<SidebarTrigger className="hidden lg:inline-flex" />}
         extra={canEditLayout && currentPageKey === "/dashboard" && (
           <Button
             variant={isLayoutEditing ? "default" : "outline"}
@@ -80,7 +82,7 @@ export function Layout() {
 
       <div className="flex min-h-0 flex-1">
         <div className="hidden lg:block lg:h-full lg:shrink-0">
-          <Sidebar />
+          <AppSidebar />
         </div>
 
         <div className={cn("fixed inset-0 top-16 z-40 transition-opacity duration-200 lg:hidden", isSidebarOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0")} aria-hidden={!isSidebarOpen}>
@@ -91,7 +93,7 @@ export function Layout() {
               onClick={() => setIsSidebarOpen(false)}
             />
             <div className={cn("relative z-50 h-full w-64 max-w-[85vw] transition-transform duration-200 ease-out", isSidebarOpen ? "translate-x-0" : "-translate-x-full")}>
-              <Sidebar className="w-full" onNavigate={() => setIsSidebarOpen(false)} />
+              <AppSidebar mobile className="w-full" onNavigate={() => setIsSidebarOpen(false)} />
             </div>
         </div>
 
@@ -126,7 +128,7 @@ export function Layout() {
           )}
         </main>
       </div>
-    </div>
+    </SidebarProvider>
     </PageLayoutEditorProvider>
   )
 }
@@ -144,12 +146,14 @@ export function AppHeader({
   user,
   isSidebarOpen,
   onToggleSidebar,
+  sidebarTrigger,
   extra,
 }: {
   publicSettings: PublicSettings
   user?: AppHeaderUser
   isSidebarOpen: boolean
   onToggleSidebar: () => void
+  sidebarTrigger?: ReactNode
   extra?: ReactNode
 }) {
   const { language } = useI18n()
@@ -170,6 +174,7 @@ export function AppHeader({
         >
           <Menu size={18} />
         </Button>
+        {sidebarTrigger}
         <Brand settings={publicSettings} />
       </div>
       <div className="flex min-w-0 items-center gap-3">
