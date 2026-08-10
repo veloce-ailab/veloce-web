@@ -8,9 +8,11 @@ import Channels from "@/pages/Channels"
 import Models from "@/pages/Models"
 import api from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
+import { canAccessAdminArea } from "@/lib/roles"
 
 interface CurrentUser {
   is_admin?: boolean
+  role?: string
 }
 
 export default function DesktopDashboard() {
@@ -29,7 +31,7 @@ export default function DesktopDashboard() {
   if (isLoading) {
     return <div className="flex h-full items-center justify-center bg-background text-sm text-muted-foreground">{t("common.loading")}</div>
   }
-  if (!user?.is_admin) {
+  if (!canAccessAdminArea(user, "admin")) {
     return <Navigate to="/chat" replace />
   }
 

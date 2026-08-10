@@ -28,6 +28,7 @@ import { useConfirmDialog } from "@/components/ui/confirm-dialog"
 import type { PublicSettings } from "@/lib/public-settings"
 import { formatCurrency } from "@/lib/currency"
 import { withPublicSettingsDefaults } from "@/lib/public-settings"
+import { isStaffUser } from "@/lib/roles"
 
 interface Group {
   id: number
@@ -48,6 +49,7 @@ interface User {
   groups?: UserGroupMembership[]
   balance: string | number
   is_admin: boolean
+  role: string
   is_disabled: boolean
 }
 
@@ -58,6 +60,7 @@ interface UserDraft {
   balance: string
   group_id: string
   is_admin: boolean
+  role: string
   is_disabled: boolean
 }
 
@@ -68,6 +71,12 @@ interface UserCreateDraft {
   balance: string
   group_id: string
   is_admin: boolean
+  role: string
+}
+
+interface CurrentUser {
+  is_admin: boolean
+  role?: string
 }
 
 type BulkAction = "disable" | "enable" | "delete" | "adjust_balance"
@@ -89,6 +98,11 @@ export default function Users() {
   const { data: settings } = useQuery<Partial<PublicSettings>>({ queryKey: ["public-settings"], queryFn: async () => (await api.get("/public/settings")).data })
   const publicSettings = withPublicSettingsDefaults(settings)
   const currency = publicSettings.payment_currency_display_name
+  const { data: currentUser } = useQuery<CurrentUser>({
+    queryKey: ["me"],
+    queryFn: async () => (await api.get("/user/me")).data,
+  })
+  const canManageRoles = Boolean(currentUser?.is_admin)
 
   const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ["users"],
@@ -112,7 +126,7 @@ export default function Users() {
     const keyword = search.trim().toLowerCase()
     return users.filter((user) => {
       const matchesSearch = !keyword || [user.id, user.username, user.email].some((value) => String(value).toLowerCase().includes(keyword))
-      const matchesRole = roleFilter === "all" || (roleFilter === "admin" ? user.is_admin : !user.is_admin)
+      const matchesRole = roleFilter === "all" || user.role === roleFilter || (roleFilter === "super_admin" && user.is_admin)
       const matchesStatus = statusFilter === "all" || (statusFilter === "disabled" ? user.is_disabled : !user.is_disabled)
       return matchesSearch && matchesRole && matchesStatus
     })
@@ -128,12 +142,18 @@ export default function Users() {
   }
 
   const updateUser = useMutation({
-    mutationFn: async (draft: UserDraft) => (await api.put(`/users/${draft.id}`, {
-      balance: Number(draft.balance || 0),
-      group_id: Number(draft.group_id || 0),
-      is_admin: draft.is_admin,
-      is_disabled: draft.is_disabled,
-    })).data,
+    mutationFn: async (draft: UserDraft) => {
+      const input: Record<string, unknown> = {
+        balance: Number(draft.balance || 0),
+        group_id: Number(draft.group_id || 0),
+        is_disabled: draft.is_disabled,
+      }
+      if (canManageRoles) {
+        input.is_admin = draft.is_admin
+        input.role = draft.role
+      }
+      return (await api.put(`/users/${draft.id}`, input)).data
+    },
     onSuccess: () => {
       setEditingUser(null)
       success(copy.saved)
@@ -143,14 +163,20 @@ export default function Users() {
   })
 
   const createUser = useMutation({
-    mutationFn: async (draft: UserCreateDraft) => (await api.post("/users", {
-      username: draft.username,
-      email: draft.email,
-      password: draft.password,
-      balance: Number(draft.balance || 0),
-      group_id: Number(draft.group_id || 0),
-      is_admin: draft.is_admin,
-    })).data,
+    mutationFn: async (draft: UserCreateDraft) => {
+      const input: Record<string, unknown> = {
+        username: draft.username,
+        email: draft.email,
+        password: draft.password,
+        balance: Number(draft.balance || 0),
+        group_id: Number(draft.group_id || 0),
+      }
+      if (canManageRoles) {
+        input.is_admin = draft.is_admin
+        input.role = draft.role
+      }
+      return (await api.post("/users", input)).data
+    },
     onSuccess: () => {
       setCreatingUser(null)
       success(copy.created)
@@ -185,7 +211,7 @@ export default function Users() {
   }
 
   const toggleVisibleUsers = () => {
-    const visibleIDs = visibleUsers.map((user) => user.id)
+    const visibleIDs = visibleUsers.filter((user) => canManageRoles || !isStaffUser(user)).map((user) => user.id)
     setSelectedIDs((ids) => allVisibleSelected ? ids.filter((id) => !visibleIDs.includes(id)) : [...new Set([...ids, ...visibleIDs])])
   }
 
@@ -208,7 +234,7 @@ export default function Users() {
       <PageTitleSlot />
       <div className="flex flex-col gap-3 rounded-md border bg-card p-3 sm:flex-row sm:items-center">
         <div className="relative flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.searchPlaceholder} className="pl-9" /></div>
-        <Select value={roleFilter} onValueChange={setRoleFilter}><SelectTrigger className="w-full sm:w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{copy.allRoles}</SelectItem><SelectItem value="admin">{copy.admins}</SelectItem><SelectItem value="member">{copy.members}</SelectItem></SelectContent></Select>
+        <Select value={roleFilter} onValueChange={setRoleFilter}><SelectTrigger className="w-full sm:w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{copy.allRoles}</SelectItem><SelectItem value="super_admin">超级管理员</SelectItem><SelectItem value="admin">{copy.admins}</SelectItem><SelectItem value="support">客服</SelectItem><SelectItem value="operations">运维</SelectItem><SelectItem value="sales">销售</SelectItem><SelectItem value="user">{copy.members}</SelectItem></SelectContent></Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger className="w-full sm:w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{copy.allStatuses}</SelectItem><SelectItem value="active">{copy.active}</SelectItem><SelectItem value="disabled">{copy.disabled}</SelectItem></SelectContent></Select>
       </div>
 
@@ -234,7 +260,7 @@ export default function Users() {
               <TableHead>{t("common.group")}</TableHead>
               <TableHead>{t("common.balance")}</TableHead>
               <TableHead>{copy.status}</TableHead>
-              <TableHead>{t("common.admin")}</TableHead>
+              <TableHead>{t("common.role")}</TableHead>
               <TableHead className="text-right">{t("common.actions")}</TableHead>
             </TableRow>
           </TableHeader>
@@ -245,16 +271,16 @@ export default function Users() {
               <EmptyRow columns={8}>{users.length === 0 ? t("users.noUsers") : copy.noMatches}</EmptyRow>
             ) : visibleUsers.map((user) => (
               <TableRow key={user.id} data-state={selectedIDs.includes(user.id) ? "selected" : undefined}>
-                <TableCell><Checkbox checked={selectedIDs.includes(user.id)} onCheckedChange={() => toggleUser(user.id)} aria-label={copy.selectUser.replace("{name}", user.username)} /></TableCell>
+                <TableCell><Checkbox checked={selectedIDs.includes(user.id)} onCheckedChange={() => toggleUser(user.id)} disabled={!canManageRoles && isStaffUser(user)} aria-label={copy.selectUser.replace("{name}", user.username)} /></TableCell>
                 <TableCell className="font-medium">{user.username}</TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>{groupNames(user)}</TableCell>
                 <TableCell>{formatCurrency(user.balance, currency)}</TableCell>
                 <TableCell><span className={user.is_disabled ? "text-sm text-destructive" : "text-sm text-emerald-600 dark:text-emerald-400"}>{user.is_disabled ? copy.disabled : copy.active}</span></TableCell>
-                <TableCell>{user.is_admin ? t("common.yes") : t("common.no")}</TableCell>
+                <TableCell>{user.is_admin ? "超级管理员" : roleLabel(user.role)}</TableCell>
                 <TableCell className="space-x-2 text-right">
-                  <Button variant="outline" size="icon" title={t("common.edit")} onClick={() => setEditingUser(userToDraft(user))}><Edit size={14} /></Button>
-                  <Button variant="outline" size="icon" className="text-red-500 hover:text-red-600" title={t("common.delete")} disabled={deleteUser.isPending} onClick={async () => {
+                  <Button variant="outline" size="icon" title={t("common.edit")} disabled={!canManageRoles && isStaffUser(user)} onClick={() => setEditingUser(userToDraft(user))}><Edit size={14} /></Button>
+                  <Button variant="outline" size="icon" className="text-red-500 hover:text-red-600" title={t("common.delete")} disabled={deleteUser.isPending || (!canManageRoles && isStaffUser(user))} onClick={async () => {
                     if (await confirm({ description: copy.confirmDelete.replace("{name}", user.username || user.email) })) deleteUser.mutate(user.id)
                   }}><Trash size={14} /></Button>
                 </TableCell>
@@ -266,8 +292,8 @@ export default function Users() {
 
       <PageInlineSlot slotKey="primary" />
       <PageInlineSlot slotKey="secondary" />
-      <UserEditorDialog title={copy.editUser} draft={editingUser} groups={groups} onChange={setEditingUser} onClose={() => setEditingUser(null)} onSave={() => editingUser && updateUser.mutate(editingUser)} isSaving={updateUser.isPending} copy={copy} t={t} />
-      <CreateUserDialog draft={creatingUser} groups={groups} onChange={setCreatingUser} onClose={() => setCreatingUser(null)} onSave={() => creatingUser && createUser.mutate(creatingUser)} isSaving={createUser.isPending} copy={copy} t={t} />
+      <UserEditorDialog title={copy.editUser} draft={editingUser} groups={groups} onChange={setEditingUser} onClose={() => setEditingUser(null)} onSave={() => editingUser && updateUser.mutate(editingUser)} isSaving={updateUser.isPending} canManageRoles={canManageRoles} copy={copy} t={t} />
+      <CreateUserDialog draft={creatingUser} groups={groups} onChange={setCreatingUser} onClose={() => setCreatingUser(null)} onSave={() => creatingUser && createUser.mutate(creatingUser)} isSaving={createUser.isPending} canManageRoles={canManageRoles} copy={copy} t={t} />
       <Dialog open={isBalanceDialogOpen} onOpenChange={setIsBalanceDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>{copy.adjustBalance}</DialogTitle></DialogHeader>
@@ -279,12 +305,12 @@ export default function Users() {
   )
 }
 
-function UserEditorDialog({ title, draft, groups, onChange, onClose, onSave, isSaving, copy, t }: { title: string; draft: UserDraft | null; groups: Group[]; onChange: (draft: UserDraft | null) => void; onClose: () => void; onSave: () => void; isSaving: boolean; copy: Copy; t: (key: Parameters<ReturnType<typeof useI18n>["t"]>[0]) => string }) {
-  return <Dialog open={Boolean(draft)} onOpenChange={(open) => !open && onClose()}><DialogContent><DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>{draft && <div className="space-y-4"><ReadOnlyUserFields draft={draft} t={t} /><BalanceField value={draft.balance} onChange={(balance) => onChange({ ...draft, balance })} t={t} /><GroupField groups={groups} value={draft.group_id} onChange={(group_id) => onChange({ ...draft, group_id })} copy={copy} /><ToggleFields isAdmin={draft.is_admin} isDisabled={draft.is_disabled} onAdminChange={(is_admin) => onChange({ ...draft, is_admin })} onDisabledChange={(is_disabled) => onChange({ ...draft, is_disabled })} copy={copy} /></div>}<DialogFooter><Button variant="outline" onClick={onClose}>{t("common.cancel")}</Button><Button disabled={!draft?.group_id || isSaving} onClick={onSave}>{isSaving ? copy.saving : copy.save}</Button></DialogFooter></DialogContent></Dialog>
+function UserEditorDialog({ title, draft, groups, onChange, onClose, onSave, isSaving, canManageRoles, copy, t }: { title: string; draft: UserDraft | null; groups: Group[]; onChange: (draft: UserDraft | null) => void; onClose: () => void; onSave: () => void; isSaving: boolean; canManageRoles: boolean; copy: Copy; t: (key: Parameters<ReturnType<typeof useI18n>["t"]>[0]) => string }) {
+  return <Dialog open={Boolean(draft)} onOpenChange={(open) => !open && onClose()}><DialogContent><DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>{draft && <div className="space-y-4"><ReadOnlyUserFields draft={draft} t={t} /><BalanceField value={draft.balance} onChange={(balance) => onChange({ ...draft, balance })} t={t} /><GroupField groups={groups} value={draft.group_id} onChange={(group_id) => onChange({ ...draft, group_id })} copy={copy} />{canManageRoles && <RoleSelect value={draft.role} onChange={(role) => onChange({ ...draft, role })} />}<ToggleFields isAdmin={draft.is_admin} isDisabled={draft.is_disabled} canManageRoles={canManageRoles} onAdminChange={(is_admin) => onChange({ ...draft, is_admin })} onDisabledChange={(is_disabled) => onChange({ ...draft, is_disabled })} copy={copy} /></div>}<DialogFooter><Button variant="outline" onClick={onClose}>{t("common.cancel")}</Button><Button disabled={!draft?.group_id || isSaving} onClick={onSave}>{isSaving ? copy.saving : copy.save}</Button></DialogFooter></DialogContent></Dialog>
 }
 
-function CreateUserDialog({ draft, groups, onChange, onClose, onSave, isSaving, copy, t }: { draft: UserCreateDraft | null; groups: Group[]; onChange: (draft: UserCreateDraft | null) => void; onClose: () => void; onSave: () => void; isSaving: boolean; copy: Copy; t: (key: Parameters<ReturnType<typeof useI18n>["t"]>[0]) => string }) {
-  return <Dialog open={Boolean(draft)} onOpenChange={(open) => !open && onClose()}><DialogContent><DialogHeader><DialogTitle>{copy.addUser}</DialogTitle></DialogHeader>{draft && <div className="space-y-4"><label className="block space-y-1 text-sm"><span className="font-medium">{t("common.username")}</span><Input autoFocus value={draft.username} onChange={(event) => onChange({ ...draft, username: event.target.value })} /></label><label className="block space-y-1 text-sm"><span className="font-medium">{t("common.email")}</span><Input type="email" value={draft.email} onChange={(event) => onChange({ ...draft, email: event.target.value })} /></label><label className="block space-y-1 text-sm"><span className="font-medium">{copy.password}</span><Input type="password" value={draft.password} onChange={(event) => onChange({ ...draft, password: event.target.value })} /><span className="text-xs text-muted-foreground">{copy.passwordHint}</span></label><BalanceField value={draft.balance} onChange={(balance) => onChange({ ...draft, balance })} t={t} /><GroupField groups={groups} value={draft.group_id} onChange={(group_id) => onChange({ ...draft, group_id })} copy={copy} /><label className="flex items-center gap-2 text-sm"><Checkbox checked={draft.is_admin} onCheckedChange={(checked) => onChange({ ...draft, is_admin: checked === true })} /><span>{copy.adminPermission}</span></label></div>}<DialogFooter><Button variant="outline" onClick={onClose}>{t("common.cancel")}</Button><Button disabled={!draft?.username.trim() || !draft.email.trim() || draft.password.length < 8 || !draft.group_id || isSaving} onClick={onSave}>{isSaving ? copy.saving : copy.create}</Button></DialogFooter></DialogContent></Dialog>
+function CreateUserDialog({ draft, groups, onChange, onClose, onSave, isSaving, canManageRoles, copy, t }: { draft: UserCreateDraft | null; groups: Group[]; onChange: (draft: UserCreateDraft | null) => void; onClose: () => void; onSave: () => void; isSaving: boolean; canManageRoles: boolean; copy: Copy; t: (key: Parameters<ReturnType<typeof useI18n>["t"]>[0]) => string }) {
+  return <Dialog open={Boolean(draft)} onOpenChange={(open) => !open && onClose()}><DialogContent><DialogHeader><DialogTitle>{copy.addUser}</DialogTitle></DialogHeader>{draft && <div className="space-y-4"><label className="block space-y-1 text-sm"><span className="font-medium">{t("common.username")}</span><Input autoFocus value={draft.username} onChange={(event) => onChange({ ...draft, username: event.target.value })} /></label><label className="block space-y-1 text-sm"><span className="font-medium">{t("common.email")}</span><Input type="email" value={draft.email} onChange={(event) => onChange({ ...draft, email: event.target.value })} /></label><label className="block space-y-1 text-sm"><span className="font-medium">{copy.password}</span><Input type="password" value={draft.password} onChange={(event) => onChange({ ...draft, password: event.target.value })} /><span className="text-xs text-muted-foreground">{copy.passwordHint}</span></label><BalanceField value={draft.balance} onChange={(balance) => onChange({ ...draft, balance })} t={t} /><GroupField groups={groups} value={draft.group_id} onChange={(group_id) => onChange({ ...draft, group_id })} copy={copy} />{canManageRoles && <><RoleSelect value={draft.role} onChange={(role) => onChange({ ...draft, role })} /><label className="flex items-center gap-2 text-sm"><Checkbox checked={draft.is_admin} onCheckedChange={(checked) => onChange({ ...draft, is_admin: checked === true })} /><span>超级管理员</span></label></>}</div>}<DialogFooter><Button variant="outline" onClick={onClose}>{t("common.cancel")}</Button><Button disabled={!draft?.username.trim() || !draft.email.trim() || draft.password.length < 8 || !draft.group_id || isSaving} onClick={onSave}>{isSaving ? copy.saving : copy.create}</Button></DialogFooter></DialogContent></Dialog>
 }
 
 function ReadOnlyUserFields({ draft, t }: { draft: UserDraft; t: (key: Parameters<ReturnType<typeof useI18n>["t"]>[0]) => string }) {
@@ -299,8 +325,12 @@ function GroupField({ groups, value, onChange, copy }: { groups: Group[]; value:
   return <label className="block space-y-1 text-sm"><span className="font-medium">{copy.primaryGroup}</span><Select value={value || "__shadcn_empty__"} onValueChange={(next) => onChange(next === "__shadcn_empty__" ? "" : next)}><SelectTrigger className="h-10 w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__shadcn_empty__">{copy.selectGroup}</SelectItem>{groups.map((group) => <SelectItem key={group.id} value={String(group.id)}>{group.name}</SelectItem>)}</SelectContent></Select></label>
 }
 
-function ToggleFields({ isAdmin, isDisabled, onAdminChange, onDisabledChange, copy }: { isAdmin: boolean; isDisabled: boolean; onAdminChange: (value: boolean) => void; onDisabledChange: (value: boolean) => void; copy: Copy }) {
-  return <div className="space-y-3"><label className="flex items-center gap-2 text-sm"><Checkbox checked={isAdmin} onCheckedChange={(checked) => onAdminChange(checked === true)} /><span>{copy.adminPermission}</span></label><label className="flex items-center gap-2 text-sm"><Checkbox checked={isDisabled} onCheckedChange={(checked) => onDisabledChange(checked === true)} /><span>{copy.disabled}</span></label></div>
+function RoleSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return <label className="block space-y-1 text-sm"><span className="font-medium">角色</span><Select value={value} onValueChange={onChange}><SelectTrigger className="h-10 w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="user">普通用户</SelectItem><SelectItem value="admin">管理员</SelectItem><SelectItem value="support">客服</SelectItem><SelectItem value="operations">运维</SelectItem><SelectItem value="sales">销售</SelectItem></SelectContent></Select></label>
+}
+
+function ToggleFields({ isAdmin, isDisabled, canManageRoles, onAdminChange, onDisabledChange, copy }: { isAdmin: boolean; isDisabled: boolean; canManageRoles: boolean; onAdminChange: (value: boolean) => void; onDisabledChange: (value: boolean) => void; copy: Copy }) {
+  return <div className="space-y-3">{canManageRoles && <label className="flex items-center gap-2 text-sm"><Checkbox checked={isAdmin} onCheckedChange={(checked) => onAdminChange(checked === true)} /><span>超级管理员</span></label>}<label className="flex items-center gap-2 text-sm"><Checkbox checked={isDisabled} onCheckedChange={(checked) => onDisabledChange(checked === true)} /><span>{copy.disabled}</span></label></div>
 }
 
 function EmptyRow({ columns, children }: { columns: number; children: React.ReactNode }) {
@@ -313,15 +343,19 @@ function groupNames(user: User) {
 }
 
 function userToDraft(user: User): UserDraft {
-  return { id: user.id, username: user.username, email: user.email, balance: String(user.balance ?? 0), group_id: String(user.group_id || user.group?.id || activeGroupMemberships(user)[0]?.group?.id || ""), is_admin: user.is_admin, is_disabled: user.is_disabled }
+  return { id: user.id, username: user.username, email: user.email, balance: String(user.balance ?? 0), group_id: String(user.group_id || user.group?.id || activeGroupMemberships(user)[0]?.group?.id || ""), is_admin: user.is_admin, role: user.role || "user", is_disabled: user.is_disabled }
 }
 
 function emptyCreateDraft(groups: Group[]): UserCreateDraft {
-  return { username: "", email: "", password: "", balance: "0", group_id: String(groups[0]?.id || ""), is_admin: false }
+  return { username: "", email: "", password: "", balance: "0", group_id: String(groups[0]?.id || ""), is_admin: false, role: "user" }
 }
 
 function activeGroupMemberships(user: User) {
   return (user.groups || []).filter((membership) => !membership.expires_at || new Date(membership.expires_at).getTime() > Date.now())
+}
+
+function roleLabel(role: string) {
+  return ({ admin: "管理员", support: "客服", operations: "运维", sales: "销售", user: "普通用户" } as Record<string, string>)[role] || "普通用户"
 }
 
 type Copy = typeof zhCopy

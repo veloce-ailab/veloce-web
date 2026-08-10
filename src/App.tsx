@@ -34,6 +34,7 @@ import { ThemeProvider } from "./lib/theme"
 import type { TranslationKey } from "./lib/i18n"
 import type { PublicSettings } from "./lib/public-settings"
 import { withPublicSettingsDefaults } from "./lib/public-settings"
+import { canAccessAdminArea, type AdminArea } from "./lib/roles"
 
 const queryClient = new QueryClient()
 
@@ -43,6 +44,7 @@ type Translate = (key: TranslationKey, params?: Record<string, string | number>)
 
 interface CurrentUser {
   is_admin: boolean
+  role?: string
 }
 
 interface SetupStatus {
@@ -80,7 +82,7 @@ const ProtectedRoute = ({
   return <>{children}</>
 }
 
-const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+const AdminRoute = ({ children, area = "admin" }: { children: React.ReactNode; area?: AdminArea }) => {
   const { t } = useI18n()
   const { data: user, isLoading } = useQuery<CurrentUser>({
     queryKey: ["me"],
@@ -93,7 +95,7 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   if (isLoading) {
     return <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
   }
-  if (!user?.is_admin) {
+  if (!canAccessAdminArea(user, area)) {
     return <Navigate to="/dashboard" replace />
   }
   return <>{children}</>
@@ -301,11 +303,11 @@ function App() {
                 <Route index element={<Dashboard />} />
                 <Route path="data-board" element={<DataBoard />} />
                 <Route path="tickets" element={<Tickets />} />
-                <Route path="admin/tickets" element={<AdminRoute><AdminTickets /></AdminRoute>} />
+                <Route path="admin/tickets" element={<AdminRoute area="tickets"><AdminTickets /></AdminRoute>} />
                 <Route
                   path="admin-overview"
                   element={
-                    <AdminRoute>
+                    <AdminRoute area="overview">
                       <AdminOverview />
                     </AdminRoute>
                   }
@@ -313,7 +315,7 @@ function App() {
                 <Route
                   path="admin-logs"
                   element={
-                    <AdminRoute>
+                    <AdminRoute area="operations">
                       <AdminAuditLogs />
                     </AdminRoute>
                   }
@@ -387,7 +389,7 @@ function App() {
                 <Route
                   path="channels"
                   element={
-                    <AdminRoute>
+                    <AdminRoute area="operations">
                       <Channels />
                     </AdminRoute>
                   }
@@ -395,7 +397,7 @@ function App() {
                 <Route
                   path="users"
                   element={
-                    <AdminRoute>
+                    <AdminRoute area="sales">
                       <Users />
                     </AdminRoute>
                   }
@@ -403,7 +405,7 @@ function App() {
                 <Route
                   path="models"
                   element={
-                    <AdminRoute>
+                    <AdminRoute area="operations">
                       <Models />
                     </AdminRoute>
                   }

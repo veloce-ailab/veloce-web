@@ -8,10 +8,12 @@ import type { TranslationKey } from "@/lib/i18n"
 import type { PublicSettings } from "@/lib/public-settings"
 import { withPublicSettingsDefaults } from "@/lib/public-settings"
 import { cn } from "@/lib/utils"
+import { canAccessAdminArea, isStaffUser, type AdminArea } from "@/lib/roles"
 import { Sidebar as ShadcnSidebar, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarRail, useSidebar } from "@/components/ui/sidebar"
 
 interface CurrentUser {
   is_admin: boolean
+  role?: string
 }
 
 interface MenuItem {
@@ -22,6 +24,7 @@ interface MenuItem {
   path: string
   settingKey?: keyof PublicSettings
   personalOnly?: boolean
+  access?: AdminArea
   children?: SystemSubItem[]
 }
 
@@ -61,18 +64,19 @@ const userMenuItems: MenuItem[] = [
 ]
 
 const adminMenuItems: MenuItem[] = [
-  { icon: BarChart3, colorClass: "bg-fuchsia-500/15 text-fuchsia-600 dark:bg-fuchsia-400/15 dark:text-fuchsia-300", labelKey: "nav.adminOverview", path: "/dashboard/admin-overview", settingKey: "sidebar_admin_overview_enabled" },
-  { icon: ScrollText, colorClass: "bg-slate-500/15 text-slate-600 dark:bg-slate-400/15 dark:text-slate-300", labelKey: "nav.auditLogs", path: "/dashboard/admin-logs", settingKey: "sidebar_admin_overview_enabled" },
-  { icon: Shield, colorClass: "bg-rose-500/15 text-rose-600 dark:bg-rose-400/15 dark:text-rose-300", labelKey: "nav.system", path: "/dashboard/admin/general", settingKey: "sidebar_system_enabled", children: systemSubItems },
-  { icon: LifeBuoy, colorClass: "bg-rose-500/15 text-rose-600 dark:bg-rose-400/15 dark:text-rose-300", labelKey: "nav.adminTickets", path: "/dashboard/admin/tickets" },
-  { icon: Database, colorClass: "bg-teal-500/15 text-teal-600 dark:bg-teal-400/15 dark:text-teal-300", labelKey: "nav.channels", path: "/dashboard/channels", settingKey: "sidebar_channels_enabled" },
-  { icon: Boxes, colorClass: "bg-pink-500/15 text-pink-600 dark:bg-pink-400/15 dark:text-pink-300", labelKey: "nav.models", path: "/dashboard/models", settingKey: "sidebar_models_enabled" },
-  { icon: Users, colorClass: "bg-lime-500/15 text-lime-700 dark:bg-lime-400/15 dark:text-lime-300", labelKey: "nav.users", path: "/dashboard/users", settingKey: "sidebar_users_enabled" },
+  { icon: BarChart3, colorClass: "bg-fuchsia-500/15 text-fuchsia-600 dark:bg-fuchsia-400/15 dark:text-fuchsia-300", labelKey: "nav.adminOverview", path: "/dashboard/admin-overview", settingKey: "sidebar_admin_overview_enabled", access: "overview" },
+  { icon: ScrollText, colorClass: "bg-slate-500/15 text-slate-600 dark:bg-slate-400/15 dark:text-slate-300", labelKey: "nav.auditLogs", path: "/dashboard/admin-logs", settingKey: "sidebar_admin_overview_enabled", access: "operations" },
+  { icon: Shield, colorClass: "bg-rose-500/15 text-rose-600 dark:bg-rose-400/15 dark:text-rose-300", labelKey: "nav.system", path: "/dashboard/admin/general", settingKey: "sidebar_system_enabled", children: systemSubItems, access: "admin" },
+  { icon: LifeBuoy, colorClass: "bg-rose-500/15 text-rose-600 dark:bg-rose-400/15 dark:text-rose-300", labelKey: "nav.adminTickets", path: "/dashboard/admin/tickets", access: "tickets" },
+  { icon: Database, colorClass: "bg-teal-500/15 text-teal-600 dark:bg-teal-400/15 dark:text-teal-300", labelKey: "nav.channels", path: "/dashboard/channels", settingKey: "sidebar_channels_enabled", access: "operations" },
+  { icon: Boxes, colorClass: "bg-pink-500/15 text-pink-600 dark:bg-pink-400/15 dark:text-pink-300", labelKey: "nav.models", path: "/dashboard/models", settingKey: "sidebar_models_enabled", access: "operations" },
+  { icon: Users, colorClass: "bg-lime-500/15 text-lime-700 dark:bg-lime-400/15 dark:text-lime-300", labelKey: "nav.users", path: "/dashboard/users", settingKey: "sidebar_users_enabled", access: "sales" },
   {
     icon: Puzzle,
     colorClass: "bg-purple-500/15 text-purple-600 dark:bg-purple-400/15 dark:text-purple-300",
     labelKey: "nav.plugins",
     path: "/dashboard/plugins",
+    access: "admin",
     children: [
       { path: "/dashboard/plugins", labelKey: "nav.installedPlugins", colorClass: "bg-purple-500" },
       { path: "/dashboard/plugins/market", labelKey: "nav.pluginMarket", colorClass: "bg-emerald-500" },
@@ -109,7 +113,7 @@ export function AppSidebar({ className, onNavigate, mobile = false }: { classNam
   const visibleUserItems = userMenuItems
 		.filter((item) => (!item.settingKey || publicSettings[item.settingKey] !== false) && (!item.personalOnly || personalMode))
   const visibleAdminItems = adminMenuItems
-		.filter((item) => (!item.settingKey || publicSettings[item.settingKey] !== false) && (!item.personalOnly || personalMode))
+		.filter((item) => (!item.settingKey || publicSettings[item.settingKey] !== false) && (!item.personalOnly || personalMode) && canAccessAdminArea(user, item.access || "admin"))
   const pluginItems = pluginSidebarItems(pluginExtensions)
 
   const menu = (
@@ -118,7 +122,7 @@ export function AppSidebar({ className, onNavigate, mobile = false }: { classNam
           {visibleUserItems.map((item) => (
             <SidebarLink key={item.path} item={item} active={location.pathname === item.path} onNavigate={onNavigate} />
           ))}
-          {user?.is_admin && visibleAdminItems.length > 0 && (
+          {isStaffUser(user) && visibleAdminItems.length > 0 && (
             <>
               <div className="my-2 border-t" />
               {visibleAdminItems.map((item) => (

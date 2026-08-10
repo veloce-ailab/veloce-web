@@ -22,6 +22,8 @@ interface TicketMessage { id: number; ticket_id: number; user_id: number; is_sta
 interface Ticket { id: number; user_id: number; subject: string; category: string; priority: TicketPriority; status: TicketStatus; closed_at?: string; created_at: string; updated_at: string; requester: TicketUser; messages?: TicketMessage[] }
 interface TicketsResponse { tickets: Ticket[] }
 interface TicketResponse { ticket: Ticket }
+interface TicketCategory { id: number; slug: string; name: string }
+interface TicketCategoriesResponse { categories: TicketCategory[] }
 export default function Tickets() {
   const client = useQueryClient()
   const { success, error } = useToast()
@@ -42,6 +44,9 @@ export default function Tickets() {
     queryKey: ticketsKey,
     queryFn: async () => (await api.get("/user/tickets")).data,
   })
+  const { data: categoryData } = useQuery<TicketCategoriesResponse>({ queryKey: ["ticket-categories"], queryFn: async () => (await api.get("/user/ticket-categories")).data })
+  const categories = categoryData?.categories || []
+  useEffect(() => { if (categories.length > 0 && !categories.some((item) => item.slug === category)) setCategory(categories[0].slug) }, [categories, category])
 
   useEffect(() => {
     if (selectedID === null && tickets.data?.tickets[0]) setSelectedID(tickets.data.tickets[0].id)
@@ -63,7 +68,7 @@ export default function Tickets() {
       const created = (response.data as TicketResponse).ticket
       setSubject("")
       setContent("")
-      setCategory("general")
+      setCategory(categories[0]?.slug || "")
       setPriority("normal")
       setCaptchaToken("")
       setCaptchaResetKey((value) => value + 1)
@@ -102,12 +107,12 @@ export default function Tickets() {
           <CardContent className="space-y-3">
             <Input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={160} placeholder="问题标题" />
             <div className="grid grid-cols-2 gap-3">
-              <Select value={category} onValueChange={setCategory}><SelectTrigger className="w-full"><SelectValue placeholder="类型" /></SelectTrigger><SelectContent><SelectItem value="general">一般咨询</SelectItem><SelectItem value="technical">技术问题</SelectItem><SelectItem value="account">账号问题</SelectItem><SelectItem value="billing">账单与充值</SelectItem><SelectItem value="suggestion">功能建议</SelectItem></SelectContent></Select>
+              <Select value={category} onValueChange={setCategory}><SelectTrigger className="w-full"><SelectValue placeholder="类型" /></SelectTrigger><SelectContent>{categories.map((item) => <SelectItem key={item.id} value={item.slug}>{item.name}</SelectItem>)}</SelectContent></Select>
               <Select value={priority} onValueChange={(value) => setPriority(value as TicketPriority)}><SelectTrigger className="w-full"><SelectValue placeholder="优先级" /></SelectTrigger><SelectContent><SelectItem value="low">低</SelectItem><SelectItem value="normal">普通</SelectItem><SelectItem value="high">高</SelectItem><SelectItem value="urgent">紧急</SelectItem></SelectContent></Select>
             </div>
             <Textarea value={content} onChange={(event) => setContent(event.target.value)} maxLength={5000} className="min-h-28" placeholder="请尽可能描述问题、复现步骤和已尝试的处理方式。" />
             {captchaEnabled && <HCaptcha siteKey={publicSettings.hcaptcha_site_key} onToken={setCaptchaToken} resetKey={captchaResetKey} />}
-            <Button className="w-full" disabled={!subject.trim() || !content.trim() || (captchaEnabled && !captchaToken) || create.isPending} onClick={() => create.mutate()}>{create.isPending ? <Loader2 className="animate-spin" /> : <Plus />}提交工单</Button>
+            <Button className="w-full" disabled={!subject.trim() || !content.trim() || !category || (captchaEnabled && !captchaToken) || create.isPending} onClick={() => create.mutate()}>{create.isPending ? <Loader2 className="animate-spin" /> : <Plus />}提交工单</Button>
           </CardContent>
         </Card>
         <Card>
@@ -115,7 +120,7 @@ export default function Tickets() {
           <CardContent className="space-y-2">
             {tickets.isLoading ? <Loading /> : allTickets.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">暂无工单</p> : allTickets.map((ticket) => <button key={ticket.id} type="button" onClick={() => setSelectedID(ticket.id)} className={cn("w-full rounded-lg border p-3 text-left transition-colors", selectedID === ticket.id ? "border-primary bg-primary/5" : "hover:bg-muted/50")}>
               <div className="flex items-start justify-between gap-2"><span className="min-w-0 truncate font-medium">{ticket.subject}</span><StatusBadge status={ticket.status} /></div>
-              <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground"><span>{categoryLabel(ticket.category)}</span><span>{formatDate(ticket.updated_at)}</span></div>
+              <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground"><span>{categoryLabel(ticket.category, categories)}</span><span>{formatDate(ticket.updated_at)}</span></div>
             </button>)}
           </CardContent>
         </Card>
@@ -124,7 +129,7 @@ export default function Tickets() {
       <Card className="min-h-125">
         {!selectedID ? <CardContent className="flex min-h-125 items-center justify-center text-sm text-muted-foreground">选择一张工单查看详情</CardContent> : detail.isLoading ? <CardContent className="flex min-h-125 items-center justify-center"><Loading /></CardContent> : selected ? <>
           <CardHeader className="border-b">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><CardTitle className="break-words">{selected.subject}</CardTitle><StatusBadge status={selected.status} /><PriorityBadge priority={selected.priority} /></div><p className="mt-1 text-sm text-muted-foreground">#{selected.id} · {categoryLabel(selected.category)} · 创建于 {formatDate(selected.created_at)}</p></div>{selected.status !== "closed" && <Button variant="outline" size="sm" disabled={close.isPending} onClick={() => close.mutate()}><XCircle />关闭工单</Button>}</div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><CardTitle className="break-words">{selected.subject}</CardTitle><StatusBadge status={selected.status} /><PriorityBadge priority={selected.priority} /></div><p className="mt-1 text-sm text-muted-foreground">#{selected.id} · {categoryLabel(selected.category, categories)} · 创建于 {formatDate(selected.created_at)}</p></div>{selected.status !== "closed" && <Button variant="outline" size="sm" disabled={close.isPending} onClick={() => close.mutate()}><XCircle />关闭工单</Button>}</div>
           </CardHeader>
           <CardContent className="flex min-h-100 flex-col gap-4">
             <div className="flex-1 space-y-4">{selected.messages?.map((message) => <article key={message.id} className={cn("max-w-[90%] rounded-lg border px-3 py-2.5", message.is_staff ? "mr-auto bg-primary/5" : "ml-auto bg-muted/60")}><div className="flex items-center justify-between gap-3 text-xs text-muted-foreground"><span>{message.is_staff ? "客服" : requesterName(message.author)}</span><time>{formatDate(message.created_at)}</time></div><p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-6">{message.content}</p></article>)}</div>
@@ -140,7 +145,7 @@ function Metric({ label, value }: { label: string; value: number }) { return <di
 function Loading() { return <Loader2 className="size-5 animate-spin text-muted-foreground" /> }
 function StatusBadge({ status }: { status: TicketStatus }) { const labels: Record<TicketStatus, string> = { open: "待处理", pending: "处理中", answered: "已回复", closed: "已关闭" }; const classes: Record<TicketStatus, string> = { open: "bg-blue-500/10 text-blue-700", pending: "bg-amber-500/10 text-amber-700", answered: "bg-emerald-500/10 text-emerald-700", closed: "bg-muted text-muted-foreground" }; return <Badge className={cn("border-0", classes[status])}>{labels[status]}</Badge> }
 function PriorityBadge({ priority }: { priority: TicketPriority }) { const labels: Record<TicketPriority, string> = { low: "低", normal: "普通", high: "高", urgent: "紧急" }; const classes: Record<TicketPriority, string> = { low: "text-muted-foreground", normal: "text-foreground", high: "text-amber-700", urgent: "text-destructive" }; return <span className={cn("text-xs font-medium", classes[priority])}>{labels[priority]}优先级</span> }
-function categoryLabel(value: string) { return ({ general: "一般咨询", technical: "技术问题", account: "账号问题", billing: "账单与充值", suggestion: "功能建议" } as Record<string, string>)[value] || "一般咨询" }
+function categoryLabel(value: string, categories: TicketCategory[]) { return categories.find((item) => item.slug === value)?.name || value }
 function requesterName(user: TicketUser) { return user.username || user.email || `用户 #${user.id}` }
 function formatDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? "-" : new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(date) }
 function errorMessage(value: unknown, fallback: string) { const candidate = value as { response?: { data?: { error?: string } } }; return candidate.response?.data?.error || fallback }
