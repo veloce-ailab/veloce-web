@@ -31,32 +31,13 @@ import {
 import type { TableQuery } from "@/components/ui/table"
 import { tableQueryParams } from "@/lib/table-query"
 import { cn } from "@/lib/utils"
+import { TimePricingEditor, type TimePricing } from "@/components/models/TimePricingEditor"
 
 interface PriceTier {
   min_tokens: number
   price: string | number
   condition?: string
   operator?: string
-}
-
-interface TimePriceTier {
-  start: string
-  end: string
-  price: string | number
-  label?: string
-}
-
-interface TimePricing {
-  timezone: string
-  input: TimePriceTier[]
-  output: TimePriceTier[]
-  cached_input: TimePriceTier[]
-  cache_write_input: TimePriceTier[]
-  cache_write_1h_input: TimePriceTier[]
-  image_input: TimePriceTier[]
-  image_output: TimePriceTier[]
-  audio_input: TimePriceTier[]
-  audio_output: TimePriceTier[]
 }
 
 interface VideoResolutionPrice {
@@ -692,7 +673,7 @@ function ModelDialog({
               onTiersChange={(tiers) => setDraft({ ...draft, audio_output_price_tiers: tiers })}
             />
           </PriceSection>
-		  <TimePricingEditor pricing={draft.time_pricing} onChange={(time_pricing) => setDraft({ ...draft, time_pricing })} />
+          <TimePricingEditor pricing={draft.time_pricing} quotaType={draft.quota_type} onChange={(time_pricing) => setDraft({ ...draft, time_pricing })} />
           <label className="flex items-center gap-2 text-sm">
             <Switch checked={Boolean(draft.enabled)} onCheckedChange={(checked) => setDraft({ ...draft, enabled: checked })} />
             {t("common.enabled")}
@@ -971,36 +952,6 @@ function PriceEditor({
       <TierEditor label={tierLabel} tiers={tiers} onChange={onTiersChange} />
     </div>
   )
-}
-
-const timePricingFields: Array<{ key: keyof Omit<TimePricing, "timezone">; label: string }> = [
-  { key: "input", label: "输入" }, { key: "output", label: "输出" },
-  { key: "cached_input", label: "缓存读取" }, { key: "cache_write_input", label: "缓存写入" },
-  { key: "cache_write_1h_input", label: "1 小时缓存写入" }, { key: "image_input", label: "图像输入" },
-  { key: "image_output", label: "图像输出" }, { key: "audio_input", label: "音频输入" }, { key: "audio_output", label: "音频输出" },
-]
-
-function TimePricingEditor({ pricing, onChange }: { pricing?: TimePricing; onChange: (pricing: TimePricing) => void }) {
-  const normalized: TimePricing = { timezone: "UTC", input: [], output: [], cached_input: [], cache_write_input: [], cache_write_1h_input: [], image_input: [], image_output: [], audio_input: [], audio_output: [], ...(pricing || {}) }
-  const [field, setField] = useState<keyof Omit<TimePricing, "timezone">>("input")
-  const tiers = normalized[field] || []
-  const update = (next: TimePriceTier[]) => onChange({ ...normalized, [field]: next })
-  return <div className="space-y-3 rounded-md border p-3">
-    <div className="text-sm font-semibold">时间分段价格</div>
-    <div className="grid gap-2 sm:grid-cols-[1fr_1fr]">
-      <FieldLabel label="时区"><Input value={normalized.timezone} onChange={(e) => onChange({ ...normalized, timezone: e.target.value })} placeholder="Asia/Shanghai" /></FieldLabel>
-      <FieldLabel label="计费项"><Select value={field} onValueChange={(value) => setField(value as keyof Omit<TimePricing, "timezone">)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{timePricingFields.map((item) => <SelectItem key={item.key} value={item.key}>{item.label}</SelectItem>)}</SelectContent></Select></FieldLabel>
-    </div>
-    <div className="space-y-2">
-      {tiers.map((tier, index) => <div key={`${index}-${tier.start}`} className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
-        <Input type="time" value={tier.start || "00:00"} onChange={(e) => update(tiers.map((item, i) => i === index ? { ...item, start: e.target.value } : item))} />
-        <Input type="time" value={tier.end || "00:00"} onChange={(e) => update(tiers.map((item, i) => i === index ? { ...item, end: e.target.value } : item))} />
-        <Input type="number" value={String(tier.price ?? 0)} onChange={(e) => update(tiers.map((item, i) => i === index ? { ...item, price: Number(e.target.value) } : item))} />
-        <Button type="button" variant="outline" size="icon" onClick={() => update(tiers.filter((_, i) => i !== index))} title="删除时间段"><Trash size={14} /></Button>
-      </div>)}
-      <Button type="button" variant="outline" size="sm" onClick={() => update([...tiers, { start: "00:00", end: "08:00", price: 0 }])}>添加时间段</Button>
-    </div>
-  </div>
 }
 
 function VideoBillingEditor({
