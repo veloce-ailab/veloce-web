@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, ChevronDown, ChevronRight, Database, History, Home, KeyRound, LayoutDashboard, LifeBuoy, Puzzle, ScrollText, Shield, Users } from "lucide-react"
+import { BarChart3, Boxes, ChevronDown, ChevronRight, Database, History, Home, KeyRound, LayoutDashboard, LifeBuoy, Puzzle, ScrollText, Shield, ShieldAlert, Users } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
@@ -66,6 +66,7 @@ const userMenuItems: MenuItem[] = [
 const adminMenuItems: MenuItem[] = [
   { icon: BarChart3, colorClass: "bg-fuchsia-500/15 text-fuchsia-600 dark:bg-fuchsia-400/15 dark:text-fuchsia-300", labelKey: "nav.adminOverview", path: "/dashboard/admin-overview", settingKey: "sidebar_admin_overview_enabled", access: "overview" },
   { icon: ScrollText, colorClass: "bg-slate-500/15 text-slate-600 dark:bg-slate-400/15 dark:text-slate-300", labelKey: "nav.auditLogs", path: "/dashboard/admin-logs", settingKey: "sidebar_admin_overview_enabled", access: "operations" },
+  { icon: ShieldAlert, colorClass: "bg-amber-500/15 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300", labelKey: "nav.riskManagement", path: "/dashboard/risk", access: "operations" },
   { icon: Shield, colorClass: "bg-rose-500/15 text-rose-600 dark:bg-rose-400/15 dark:text-rose-300", labelKey: "nav.system", path: "/dashboard/admin/general", settingKey: "sidebar_system_enabled", children: systemSubItems, access: "admin" },
   { icon: LifeBuoy, colorClass: "bg-rose-500/15 text-rose-600 dark:bg-rose-400/15 dark:text-rose-300", labelKey: "nav.adminTickets", path: "/dashboard/admin/tickets", access: "tickets" },
   { icon: Database, colorClass: "bg-teal-500/15 text-teal-600 dark:bg-teal-400/15 dark:text-teal-300", labelKey: "nav.channels", path: "/dashboard/channels", settingKey: "sidebar_channels_enabled", access: "operations" },

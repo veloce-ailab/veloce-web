@@ -27,6 +27,7 @@ import PublicContent from "./pages/PublicContent"
 import Tickets from "./pages/Tickets"
 import AdminTickets from "./pages/AdminTickets"
 import StatusPage from "./pages/StatusPage"
+import RiskManagement from "./pages/RiskManagement"
 import api from "./lib/api"
 import { I18nProvider, useI18n } from "./lib/i18n"
 import { ToastProvider } from "./components/ui/toast"
@@ -201,6 +202,9 @@ function pageTitleForPath(pathname: string, language: Language, t: Translate) {
   if (normalizedPathname === "/dashboard/admin-logs" || normalizedPathname === "/dashboard/admin-overview/logs") {
     return language === "zh" ? "日志查看" : "Audit Logs"
   }
+  if (normalizedPathname === "/dashboard/risk") {
+    return language === "zh" ? "风控管理" : language === "ja" ? "リスク管理" : "Risk Management"
+  }
   if (normalizedPathname === "/dashboard/data-board") {
     return t("dataBoard.title")
   }
@@ -317,6 +321,14 @@ function App() {
                   element={
                     <AdminRoute area="operations">
                       <AdminAuditLogs />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="risk"
+                  element={
+                    <AdminRoute area="operations">
+                      <RiskManagement />
                     </AdminRoute>
                   }
                 />
