@@ -13,7 +13,7 @@ import type { OAuthProviderSummary as OAuthProvider, PublicSettings } from "@/li
 import { parseOAuthProviders, withPublicSettingsDefaults } from "@/lib/public-settings"
 import { passkeyCredentialToJSON, passkeySupported, preparePasskeyRequestOptions } from "@/lib/passkey"
 
-type Mode = "login" | "register"
+type Mode = "login" | "register" | "reset"
 
 export default function Login() {
   return <WebLogin />
@@ -48,9 +48,21 @@ function WebLogin() {
   const [captchaVerifiedEmail, setCaptchaVerifiedEmail] = useState("")
   const [captchaResetKey, setCaptchaResetKey] = useState(0)
   const [agreementAccepted, setAgreementAccepted] = useState(false)
+  const [resetChannel, setResetChannel] = useState<"email" | "phone">("email")
+  const [resetEmail, setResetEmail] = useState("")
+  const [resetPhone, setResetPhone] = useState("")
+  const [resetCode, setResetCode] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [resetCodeSentFor, setResetCodeSentFor] = useState("")
   const labels = language === "zh"
     ? { about: "关于", privacy: "隐私政策", terms: "用户协议" }
     : { about: "About", privacy: "Privacy", terms: "Terms" }
+  const resetEmailAvailable = publicSettings.password_reset_email_enabled
+  const resetPhoneAvailable = publicSettings.password_reset_phone_enabled
+  const resetAvailable = publicSettings.password_login_enabled && (resetEmailAvailable || resetPhoneAvailable)
+  const resetTarget = (resetChannel === "email" ? resetEmail : resetPhone).trim()
+  const resetCodeSentForTarget = Boolean(resetTarget) && resetCodeSentFor === `${resetChannel}:${resetTarget.toLowerCase()}`
 
   useEffect(() => {
     const referralCode = new URLSearchParams(window.location.search).get("ref")
@@ -66,7 +78,10 @@ function WebLogin() {
     if (mode === "register" && !publicSettings.password_registration_enabled && publicSettings.password_login_enabled) {
       setMode("login")
     }
-  }, [mode, publicSettings.password_login_enabled, publicSettings.password_registration_enabled])
+    if (mode === "reset" && !resetAvailable) {
+      setMode("login")
+    }
+  }, [mode, publicSettings.password_login_enabled, publicSettings.password_registration_enabled, resetAvailable])
 
   const submitPassword = useMutation({
     mutationFn: async () => {
@@ -214,6 +229,68 @@ function WebLogin() {
     onError: (err) => error(err instanceof Error ? err.message : copy.sendCodeFailed),
   })
 
+  const sendResetCode = useMutation({
+    mutationFn: async () => {
+      const endpoint = resetChannel === "email" ? "/auth/password/reset-email-code" : "/auth/password/reset-sms-code"
+      const payload = resetChannel === "email"
+        ? { email: resetEmail, captcha_token: captchaToken }
+        : { phone: resetPhone, captcha_token: captchaToken }
+      const response = await fetch(apiURL(endpoint), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(body.error || copy.sendCodeFailed)
+      }
+      return body
+    },
+    onSuccess: () => {
+      setResetCodeSentFor(`${resetChannel}:${resetTarget.toLowerCase()}`)
+      setCaptchaToken("")
+      setCaptchaResetKey((value) => value + 1)
+      success(copy.codeSent)
+    },
+    onError: (err) => error(err instanceof Error ? err.message : copy.sendCodeFailed),
+  })
+
+  const submitPasswordReset = useMutation({
+    mutationFn: async () => {
+      if (newPassword.length < 8) {
+        throw new Error(copy.passwordTooShort)
+      }
+      if (newPassword !== confirmPassword) {
+        throw new Error(copy.passwordMismatch)
+      }
+      const payload = resetChannel === "email"
+        ? { email: resetEmail, code: resetCode, new_password: newPassword }
+        : { phone: resetPhone, code: resetCode, new_password: newPassword }
+      const response = await fetch(apiURL("/auth/password/reset"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(body.error || copy.resetFailed)
+      }
+      return body
+    },
+    onSuccess: () => {
+      success(copy.resetSuccess)
+      setIdentifier(resetChannel === "email" ? resetEmail.trim() : resetPhone.trim())
+      setLoginMethod("password")
+      setPassword("")
+      setResetCode("")
+      setNewPassword("")
+      setConfirmPassword("")
+      setResetCodeSentFor("")
+      setMode("login")
+    },
+    onError: (err) => error(err instanceof Error ? err.message : copy.resetFailed),
+  })
+
   const handleOAuthLogin = (provider: OAuthProvider) => {
     if (!agreementReady) {
       error(copy.agreementRequired)
@@ -245,6 +322,7 @@ function WebLogin() {
   const passwordAuthEnabled = publicSettings.password_login_enabled || publicSettings.password_registration_enabled
   const captchaEnabled = passwordAuthEnabled && publicSettings.password_hcaptcha_enabled && Boolean(publicSettings.hcaptcha_site_key)
   const captchaSatisfiedByEmailCode = mode === "register" && publicSettings.email_verification_required && captchaVerifiedEmail === email.trim().toLowerCase()
+  const captchaSatisfiedByResetCode = mode === "reset" && resetCodeSentForTarget
   const oauthEnabled = publicSettings.oidc_enabled && oauthProviders.length > 0
   const oidcOnly = oauthEnabled && !passwordAuthEnabled && !publicSettings.passkey_enabled
   const privacyHref = legalHref("privacy", publicSettings)
@@ -259,6 +337,14 @@ function WebLogin() {
     ? (usingSMSLogin ? Boolean(phone.trim() && phoneCode.trim()) : Boolean(identifier.trim() && password))
     : Boolean(username.trim() && email.trim() && password && (!publicSettings.email_verification_required || emailCode.trim()))) && agreementReady
   const noLoginMethod = !passwordAuthEnabled && !oauthEnabled && !publicSettings.passkey_enabled
+  const canSubmitReset = Boolean(resetTarget && resetCode.trim() && newPassword.length >= 8 && confirmPassword)
+  const openPasswordReset = () => {
+    setResetChannel(resetEmailAvailable || !resetPhoneAvailable ? "email" : "phone")
+    setResetCodeSentFor("")
+    setCaptchaToken("")
+    setCaptchaResetKey((value) => value + 1)
+    setMode("reset")
+  }
 
   if (isSettingsLoading && !settings) {
     return (
@@ -304,6 +390,17 @@ function WebLogin() {
                 <div className="space-y-3">
                   <Input value={identifier} placeholder={copy.identifierPlaceholder} onChange={(event) => setIdentifier(event.target.value)} />
                   <Input value={password} type="password" placeholder={copy.passwordPlaceholder} onChange={(event) => setPassword(event.target.value)} />
+                  {resetAvailable && (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+                        onClick={openPasswordReset}
+                      >
+                        {copy.forgotPassword}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -345,15 +442,74 @@ function WebLogin() {
                 </div>
               )}
 
-              {publicSettings.passkey_enabled && !publicSettings.password_login_enabled && !oidcOnly && (
+              {mode === "reset" && (
+                <div className="space-y-3">
+                  {resetEmailAvailable && resetPhoneAvailable && (
+                    <div className="flex rounded-md border p-1">
+                      <Button
+                        variant={resetChannel === "email" ? "default" : "ghost"}
+                        className="flex-1"
+                        onClick={() => { setResetChannel("email"); setResetCodeSentFor("") }}
+                      >
+                        {copy.resetByEmail}
+                      </Button>
+                      <Button
+                        variant={resetChannel === "phone" ? "default" : "ghost"}
+                        className="flex-1"
+                        onClick={() => { setResetChannel("phone"); setResetCodeSentFor("") }}
+                      >
+                        {copy.resetByPhone}
+                      </Button>
+                    </div>
+                  )}
+                  <Input
+                    value={resetChannel === "email" ? resetEmail : resetPhone}
+                    type={resetChannel === "email" ? "email" : "tel"}
+                    placeholder={resetChannel === "email" ? copy.resetEmailPlaceholder : copy.resetPhonePlaceholder}
+                    onChange={(event) => {
+                      if (resetChannel === "email") {
+                        setResetEmail(event.target.value)
+                      } else {
+                        setResetPhone(event.target.value)
+                      }
+                      setResetCodeSentFor("")
+                    }}
+                  />
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Input value={resetCode} placeholder={copy.resetCodePlaceholder} onChange={(event) => setResetCode(event.target.value)} />
+                    <Button
+                      variant="outline"
+                      className="shrink-0"
+                      disabled={!resetTarget || resetCodeSentForTarget || (captchaEnabled && !captchaToken) || sendResetCode.isPending}
+                      onClick={() => sendResetCode.mutate()}
+                    >
+                      {copy.sendCode}
+                    </Button>
+                  </div>
+                  <Input value={newPassword} type="password" placeholder={copy.newPasswordPlaceholder} onChange={(event) => setNewPassword(event.target.value)} />
+                  <Input value={confirmPassword} type="password" placeholder={copy.confirmPasswordPlaceholder} onChange={(event) => setConfirmPassword(event.target.value)} />
+                  <Button className="w-full" disabled={!canSubmitReset || submitPasswordReset.isPending} onClick={() => submitPasswordReset.mutate()}>
+                    {copy.resetPasswordAction}
+                  </Button>
+                  <button
+                    type="button"
+                    className="w-full text-center text-xs text-muted-foreground underline-offset-4 hover:underline"
+                    onClick={() => setMode("login")}
+                  >
+                    {copy.backToLogin}
+                  </button>
+                </div>
+              )}
+
+              {publicSettings.passkey_enabled && !publicSettings.password_login_enabled && !oidcOnly && mode !== "reset" && (
                 <Input value={identifier} placeholder={copy.passkeyIdentifierPlaceholder} onChange={(event) => setIdentifier(event.target.value)} />
               )}
 
-              {captchaEnabled && !captchaSatisfiedByEmailCode && (
+              {captchaEnabled && !captchaSatisfiedByEmailCode && !captchaSatisfiedByResetCode && (
                 <HCaptcha siteKey={publicSettings.hcaptcha_site_key} onToken={setCaptchaToken} resetKey={captchaResetKey} />
               )}
 
-              {hasAgreement && (
+              {hasAgreement && mode !== "reset" && (
                 <AgreementControl
                   copy={copy}
                   labels={labels}
@@ -365,7 +521,7 @@ function WebLogin() {
                 />
               )}
 
-              {passwordAuthEnabled && (
+              {passwordAuthEnabled && mode !== "reset" && (
                 <Button
                   className="w-full"
                   disabled={!canSubmit || submitPassword.isPending || submitPhoneLogin.isPending}
@@ -375,13 +531,13 @@ function WebLogin() {
                 </Button>
               )}
 
-              {oauthEnabled && oauthProviders.map((provider) => (
+              {oauthEnabled && mode !== "reset" && oauthProviders.map((provider) => (
                 <Button key={provider.key} variant="outline" className="w-full" disabled={!agreementReady} onClick={() => handleOAuthLogin(provider)}>
                   {oauthCopy.loginWith.replace("{name}", provider.name || provider.key)}
                 </Button>
               ))}
 
-              {publicSettings.passkey_enabled && (
+              {publicSettings.passkey_enabled && mode !== "reset" && (
                 <Button variant="outline" className="w-full" disabled={!agreementReady || signInWithPasskey.isPending} onClick={() => signInWithPasskey.mutate()}>
                   {copy.passkeyLogin}
                 </Button>
@@ -523,6 +679,20 @@ const zhCopy = {
   codeSent: "验证码已发送",
   sendCodeFailed: "验证码发送失败",
   authFailed: "认证失败",
+  forgotPassword: "忘记密码？",
+  resetByEmail: "邮箱验证码",
+  resetByPhone: "手机验证码",
+  resetEmailPlaceholder: "注册邮箱",
+  resetPhonePlaceholder: "绑定手机号",
+  resetCodePlaceholder: "验证码",
+  newPasswordPlaceholder: "新密码，至少 8 位",
+  confirmPasswordPlaceholder: "确认新密码",
+  resetPasswordAction: "重置密码",
+  backToLogin: "返回登录",
+  resetSuccess: "密码已重置，请使用新密码登录",
+  resetFailed: "密码重置失败",
+  passwordMismatch: "两次输入的密码不一致",
+  passwordTooShort: "密码至少 8 位",
   passkeyLogin: "Passkey 登录",
   passkeyIdentifierPlaceholder: "用户名或邮箱（可选）",
   passkeyUnsupported: "当前浏览器不支持 Passkey",
@@ -550,6 +720,20 @@ const enCopy: typeof zhCopy = {
   codeSent: "Verification code sent",
   sendCodeFailed: "Failed to send code",
   authFailed: "Authentication failed",
+  forgotPassword: "Forgot password?",
+  resetByEmail: "Email code",
+  resetByPhone: "SMS code",
+  resetEmailPlaceholder: "Account email",
+  resetPhonePlaceholder: "Bound phone number",
+  resetCodePlaceholder: "Verification code",
+  newPasswordPlaceholder: "New password, at least 8 characters",
+  confirmPasswordPlaceholder: "Confirm new password",
+  resetPasswordAction: "Reset password",
+  backToLogin: "Back to sign in",
+  resetSuccess: "Password reset. Sign in with your new password.",
+  resetFailed: "Failed to reset password",
+  passwordMismatch: "The two passwords do not match",
+  passwordTooShort: "Password must be at least 8 characters",
   passkeyLogin: "Sign in with passkey",
   passkeyIdentifierPlaceholder: "Username or email (optional)",
   passkeyUnsupported: "This browser does not support passkeys",

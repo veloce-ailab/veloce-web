@@ -91,6 +91,8 @@ export interface PublicSettings {
   passkey_enabled: boolean
   password_login_enabled: boolean
   password_registration_enabled: boolean
+  password_reset_email_enabled: boolean
+  password_reset_phone_enabled: boolean
   password_hcaptcha_enabled: boolean
   hcaptcha_site_key: string
   email_verification_required: boolean
@@ -194,6 +196,8 @@ export const defaultPublicSettings: PublicSettings = {
   passkey_enabled: false,
   password_login_enabled: true,
   password_registration_enabled: true,
+  password_reset_email_enabled: false,
+  password_reset_phone_enabled: false,
   password_hcaptcha_enabled: false,
   hcaptcha_site_key: "",
   email_verification_required: false,
