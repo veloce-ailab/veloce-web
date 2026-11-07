@@ -126,6 +126,7 @@ interface SyncPreviewItem {
   image_output_price_tiers?: PriceTier[]
   audio_input_price_tiers?: PriceTier[]
   audio_output_price_tiers?: PriceTier[]
+  has_time_pricing?: boolean
   provider: string
   provider_name: string
   provider_icon_url: string
@@ -748,12 +749,13 @@ function PriceSyncPreviewDialog({
                     <TableHead>{t("admin.outputPrice")}</TableHead>
                     <TableHead>{copy.cachedInputPrice}</TableHead>
                     <TableHead>{copy.cacheWriteInputPrice}</TableHead>
+                    <TableHead>{copy.timePricingSync}</TableHead>
                     <TableHead>{copy.syncStatus}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {models.length === 0 ? (
-                    <EmptyRow colSpan={9} text={copy.noSyncModels} />
+                    <EmptyRow colSpan={10} text={copy.noSyncModels} />
                   ) : (
                     models.map((item) => (
                       <TableRow key={item.model_name}>
@@ -780,6 +782,7 @@ function PriceSyncPreviewDialog({
                         <TableCell>
                           <PriceWithTiers value={item.cache_write_input_price ?? 0} tiers={item.cache_write_input_price_tiers} />
                         </TableCell>
+                        <TableCell>{item.has_time_pricing ? copy.timePricingIncluded : copy.timePricingPreserved}</TableCell>
                         <TableCell>{item.exists ? copy.exists : copy.newModel}</TableCell>
                       </TableRow>
                     ))
@@ -1510,6 +1513,9 @@ const zhCopy = {
   syncFailed: "同步价格失败",
   syncPreviewTitle: "选择要同步的价格",
   selectAll: "全选",
+  timePricingSync: "分时价格",
+  timePricingIncluded: "将同步",
+  timePricingPreserved: "未提供，不覆盖现有配置",
   syncStatus: "状态",
   exists: "已存在",
   newModel: "新增",
@@ -1594,6 +1600,9 @@ const enCopy: typeof zhCopy = {
   syncFailed: "Failed to sync prices",
   syncPreviewTitle: "Select prices to sync",
   selectAll: "Select all",
+  timePricingSync: "Time pricing",
+  timePricingIncluded: "Included",
+  timePricingPreserved: "Not provided; keep current config",
   syncStatus: "Status",
   exists: "Exists",
   newModel: "New",
