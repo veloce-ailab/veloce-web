@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { HCaptcha } from "@/components/HCaptcha"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/toast"
+import { resolvePostLoginPath } from "@/lib/desktop-authorize"
 import api, { apiURL, getOAuthLoginURL, setAuthToken } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
 import type { OAuthProviderSummary as OAuthProvider, PublicSettings } from "@/lib/public-settings"
@@ -114,7 +115,7 @@ function WebLogin() {
     onSuccess: (result) => {
       setAuthToken(result.token)
       localStorage.removeItem("referral_code")
-      window.location.href = "/dashboard"
+      window.location.href = resolvePostLoginPath()
     },
     onError: (err) => error(err instanceof Error ? err.message : copy.authFailed),
   })
@@ -157,7 +158,7 @@ function WebLogin() {
     onSuccess: (result) => {
       setAuthToken(result.token)
       localStorage.removeItem("referral_code")
-      window.location.href = "/dashboard"
+      window.location.href = resolvePostLoginPath()
     },
     onError: (err) => error(err instanceof Error ? err.message : copy.passkeyFailed),
   })
@@ -181,7 +182,7 @@ function WebLogin() {
     onSuccess: (result) => {
       setAuthToken(result.token)
       localStorage.removeItem("referral_code")
-      window.location.href = "/dashboard"
+      window.location.href = resolvePostLoginPath()
     },
     onError: (err) => error(err instanceof Error ? err.message : copy.authFailed),
   })

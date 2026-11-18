@@ -23,16 +23,11 @@ import type { PublicSettings } from "@/lib/public-settings"
 import { isPersonalMode, withPublicSettingsDefaults } from "@/lib/public-settings"
 import { formatCurrency } from "@/lib/currency"
 import { APIKeyImportDialog } from "@/components/api-key-import-dialog"
+import { APIKeyCreateDialog, FieldLabel, RestrictionPicker } from "@/components/api-key-create-dialog"
+import { dateTimeLocalValue, parseCSV, parseQuotaLimit, quotaInputValue } from "@/lib/api-key-form"
+import type { APIKeyPayload, CreateAPIKeyResponse, UserChannelCatalog } from "@/components/api-key-create-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DateTimePicker } from "@/components/ui/date-picker"
-
-interface UserChannelCatalog {
-  id: number
-  name: string
-  description: string
-  multiplier: string | number
-  models: string[]
-}
 
 interface APIKey {
   id: number
@@ -61,23 +56,6 @@ interface UsageStats {
   total_cost: string | number
 }
 
-interface CreateAPIKeyResponse {
-  api_key: string
-  key: APIKey
-}
-
-interface APIKeyPayload {
-  name: string
-  allowed_models: string[]
-  allowed_user_channels: number[]
-  allowed_ips: string[]
-  quota_limit?: string
-  enabled?: boolean
-  expires_at?: string
-  clear_expiration?: boolean
-  billing_sources?: string[]
-}
-
 interface UserSubscription {
   id: number
   balance: string | number
@@ -91,13 +69,6 @@ export default function APIKeys() {
   const { success, error } = useToast()
   const { confirm, confirmDialog } = useConfirmDialog()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [newRawKey, setNewRawKey] = useState("")
-  const [newName, setNewName] = useState("")
-  const [newChannelIds, setNewChannelIds] = useState<number[]>([])
-  const [newModels, setNewModels] = useState<string[]>([])
-  const [newIPs, setNewIPs] = useState("")
-  const [newQuotaLimit, setNewQuotaLimit] = useState("")
-  const [newExpiresAt, setNewExpiresAt] = useState("")
   const [selectedKeys, setSelectedKeys] = useState<number[]>([])
   const { data: settings } = useQuery<PublicSettings>({
     queryKey: ["public-settings"],
@@ -134,33 +105,6 @@ export default function APIKeys() {
     },
   })
   const normalizedAPIKeys = Array.isArray(apiKeys) ? apiKeys.map(normalizeAPIKey) : []
-
-  const createAPIKey = useMutation<CreateAPIKeyResponse>({
-    mutationFn: async () => {
-      const payload: APIKeyPayload = {
-        name: newName || "API key",
-        allowed_models: newModels,
-        allowed_user_channels: personalMode ? [] : newChannelIds,
-        allowed_ips: parseCSV(newIPs),
-        quota_limit: personalMode ? "0" : parseQuotaLimit(newQuotaLimit),
-        ...(newExpiresAt ? { expires_at: new Date(newExpiresAt).toISOString() } : {}),
-      }
-      const res = await api.post("/user/api-keys", payload)
-      return res.data
-    },
-    onSuccess: (data) => {
-      setNewRawKey(data.api_key)
-      success(t("settings.keyCreated"))
-      setNewName("")
-      setNewChannelIds([])
-      setNewModels([])
-      setNewIPs("")
-      setNewQuotaLimit("")
-      setNewExpiresAt("")
-      queryClient.invalidateQueries({ queryKey: ["api-keys"] })
-    },
-    onError: () => error(t("settings.keyCreateFailed")),
-  })
 
   const updateAPIKey = useMutation({
     mutationFn: async ({ id, payload }: { id: number; payload: APIKeyPayload }) => {
@@ -202,8 +146,7 @@ export default function APIKeys() {
       const res = await api.post(`/user/api-keys/${id}/rotate`)
       return res.data
     },
-    onSuccess: (data) => {
-      setNewRawKey(data.api_key)
+    onSuccess: () => {
       success(t("settings.keyRotated"))
       queryClient.invalidateQueries({ queryKey: ["api-keys"] })
     },
@@ -231,7 +174,6 @@ export default function APIKeys() {
   }
 
   const openCreateDialog = () => {
-    setNewRawKey("")
     setIsCreateOpen(true)
   }
 
@@ -241,17 +183,6 @@ export default function APIKeys() {
       setSearchParams({}, { replace: true })
     }
   }, [searchParams, setSearchParams])
-
-  const closeCreateDialog = () => {
-    setIsCreateOpen(false)
-    setNewRawKey("")
-    setNewName("")
-    setNewChannelIds([])
-    setNewModels([])
-    setNewIPs("")
-    setNewQuotaLimit("")
-    setNewExpiresAt("")
-  }
 
   const confirmDeleteAPIKey = async (id: number, name: string) => {
     const description = language === "zh" ? `确定要删除令牌“${name || "API key"}”吗？此操作无法撤销。` : `Delete API key “${name || "API key"}”? This cannot be undone.`
@@ -304,75 +235,12 @@ export default function APIKeys() {
 
       <PageInlineSlot slotKey="primary" />
       <PageInlineSlot slotKey="secondary" />
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{t("settings.createKey")}</DialogTitle>
-            <DialogDescription>{t("settings.apiKeysSubtitle")}</DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <FieldLabel label={t("settings.keyName")}>
-              <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={t("settings.keyName")} />
-            </FieldLabel>
-            {!personalMode && (
-              <RestrictionPicker
-                catalog={catalog}
-                channelIds={newChannelIds}
-                models={newModels}
-                onChannelIdsChange={(channelIds) => {
-                  setNewChannelIds(channelIds)
-                  setNewModels([])
-                }}
-                onModelsChange={setNewModels}
-              />
-            )}
-            <FieldLabel label={language === "zh" ? "过期时间" : "Expiration time"}>
-              <DateTimePicker value={newExpiresAt} onValueChange={setNewExpiresAt} />
-            </FieldLabel>
-            <FieldLabel label={t("settings.allowedIPs")}>
-              <Input value={newIPs} onChange={(e) => setNewIPs(e.target.value)} placeholder={t("settings.ipsPlaceholder")} />
-            </FieldLabel>
-            {!personalMode && (
-              <FieldLabel label={t("settings.quotaLimit")}>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.000001"
-                  value={newQuotaLimit}
-                  onChange={(e) => setNewQuotaLimit(e.target.value)}
-                  placeholder={t("settings.quotaPlaceholder")}
-                />
-              </FieldLabel>
-            )}
-          </div>
-
-          {newRawKey && (
-            <div className="space-y-2 rounded-md border p-3">
-              <div className="text-sm font-medium">{t("settings.newKey")}</div>
-              <div className="text-xs text-muted-foreground">{t("settings.keyStored")}</div>
-              <div className="flex gap-2">
-                <Input readOnly value={newRawKey} className="font-mono text-xs" placeholder={t("settings.newKey")} />
-                <Button variant="outline" size="icon" onClick={() => copyValue(newRawKey)} title={t("settings.copyKey")}>
-                  <Copy size={16} />
-                </Button>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={closeCreateDialog}>
-              {newRawKey ? t("common.close") : t("common.cancel")}
-            </Button>
-            {!newRawKey && (
-              <Button className="gap-2" onClick={() => createAPIKey.mutate()} disabled={createAPIKey.isPending || (!personalMode && newChannelIds.length === 0)}>
-                <Plus size={16} />
-                {createAPIKey.isPending ? t("settings.creatingKey") : t("settings.createKey")}
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <APIKeyCreateDialog
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        catalog={catalog}
+        personalMode={personalMode}
+      />
     </div>
   )
 }
@@ -604,168 +472,6 @@ function apiBaseURLForConfig() {
   return typeof window === "undefined" ? "http://localhost:8080" : window.location.origin
 }
 
-function RestrictionPicker({
-  catalog,
-  channelIds,
-  models,
-  onChannelIdsChange,
-  onModelsChange,
-}: {
-  catalog: UserChannelCatalog[]
-  channelIds: number[]
-  models: string[]
-  onChannelIdsChange: (value: number[]) => void
-  onModelsChange: (value: string[]) => void
-}) {
-  const { t } = useI18n()
-  const [customMode, setCustomMode] = useState(channelIds.length > 1)
-  const isCustom = customMode || channelIds.length > 1
-  const modelOptions = modelOptionsForChannels(catalog, channelIds, models)
-  const selectedChannel = !isCustom ? catalog.find((channel) => channel.id === (channelIds[0] || 0)) : undefined
-  const remainingChannels = catalog.filter((channel) => !channelIds.includes(channel.id))
-
-  const selectValue = isCustom ? "__custom__" : String((channelIds[0] || "") || "__shadcn_empty__")
-  const handleSelect = (value: string) => {
-    if (value === "__custom__") {
-      setCustomMode(true)
-      return
-    }
-    setCustomMode(false)
-    const id = Number(value === "__shadcn_empty__" ? "" : value) || 0
-    onChannelIdsChange(id ? [id] : [])
-  }
-
-  const moveChannel = (index: number, delta: number) => {
-    const next = [...channelIds]
-    const swap = index + delta
-    if (swap < 0 || swap >= next.length) return
-    ;[next[index], next[swap]] = [next[swap], next[index]]
-    onChannelIdsChange(next)
-  }
-
-  return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <div className="space-y-2">
-        <div className="text-sm font-medium">{t("settings.userChannels")}</div>
-        <Select value={selectValue} onValueChange={handleSelect}><SelectTrigger className="h-10 w-full rounded-2xl border border-border bg-background px-3 text-sm"><SelectValue>
-          {isCustom ? (
-            t("settings.customAutoChannel")
-          ) : selectedChannel ? (
-            <span className="flex items-center gap-2">
-              <span className="truncate">{selectedChannel.name}</span>
-              <span className="shrink-0 text-xs text-muted-foreground">×{formatMultiplier(selectedChannel.multiplier)}</span>
-            </span>
-          ) : (
-            t("admin.selectUserChannel")
-          )}
-        </SelectValue></SelectTrigger><SelectContent>
-          <SelectItem value="__shadcn_empty__">{t("admin.selectUserChannel")}</SelectItem>
-          {catalog.map((channel) => (
-            <SelectItem key={channel.id} value={String(channel.id)}>
-              <span className="flex min-w-0 flex-col py-0.5 text-left">
-                <span className="flex items-center gap-2">
-                  <span className="truncate">{channel.name}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">{t("channels.multiplier")} ×{formatMultiplier(channel.multiplier)}</span>
-                </span>
-                {channel.description && (
-                  <span className="max-w-80 truncate text-xs text-muted-foreground">{channel.description}</span>
-                )}
-              </span>
-            </SelectItem>
-          ))}
-          <SelectItem value="__custom__">
-            <span className="flex min-w-0 flex-col py-0.5 text-left">
-              <span className="truncate">{t("settings.customAutoChannel")}</span>
-              <span className="max-w-80 truncate text-xs text-muted-foreground">{t("settings.autoChannelHint")}</span>
-            </span>
-          </SelectItem>
-        </SelectContent></Select>
-        {!isCustom && selectedChannel?.description && (
-          <div className="text-xs text-muted-foreground">{selectedChannel.description}</div>
-        )}
-        {isCustom && (
-          <div className="space-y-2 rounded-md border p-3">
-            <div className="text-xs text-muted-foreground">{t("settings.autoChannelHint")}</div>
-            {channelIds.length === 0 ? (
-              <div className="text-sm text-muted-foreground">{t("settings.autoChannelEmpty")}</div>
-            ) : (
-              <div className="space-y-1">
-                {channelIds.map((id, index) => {
-                  const channel = catalog.find((item) => item.id === id)
-                  return (
-                    <div key={id} className="flex items-center gap-2 rounded-md border px-2 py-1 text-sm">
-                      <span className="w-5 shrink-0 text-center font-mono text-xs text-muted-foreground">{index + 1}</span>
-                      <span className="min-w-0 flex-1 truncate">{channel?.name || `#${id}`}</span>
-                      {channel && (
-                        <span className="shrink-0 text-xs text-muted-foreground">×{formatMultiplier(channel.multiplier)}</span>
-                      )}
-                      <Button variant="ghost" size="icon" className="h-6 w-6" disabled={index === 0} onClick={() => moveChannel(index, -1)}>
-                        <ArrowUp size={12} />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" disabled={index === channelIds.length - 1} onClick={() => moveChannel(index, 1)}>
-                        <ArrowDown size={12} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-red-500 hover:text-red-600"
-                        onClick={() => onChannelIdsChange(channelIds.filter((item) => item !== id))}
-                      >
-                        <X size={12} />
-                      </Button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-            {remainingChannels.length > 0 && (
-              <Select value="__shadcn_empty__" onValueChange={(value) => {
-                const id = Number(value === "__shadcn_empty__" ? "" : value) || 0
-                if (id && !channelIds.includes(id)) {
-                  onChannelIdsChange([...channelIds, id])
-                }
-              }}><SelectTrigger className="h-9 w-full rounded-xl border border-border bg-background px-3 text-sm"><SelectValue>
-                {t("settings.addAutoChannel")}
-              </SelectValue></SelectTrigger><SelectContent>
-                <SelectItem value="__shadcn_empty__">{t("settings.addAutoChannel")}</SelectItem>
-                {remainingChannels.map((channel) => (
-                  <SelectItem key={channel.id} value={String(channel.id)}>
-                    <span className="flex items-center gap-2">
-                      <span className="truncate">{channel.name}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground">×{formatMultiplier(channel.multiplier)}</span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent></Select>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <div className="text-sm font-medium">{t("settings.modelScope")}</div>
-        <div className="text-xs text-muted-foreground">{t("settings.noLimit")}</div>
-        <div className="grid max-h-48 gap-2 overflow-auto rounded-md border p-3">
-          {modelOptions.length === 0 ? (
-            <div className="text-sm text-muted-foreground">{t("settings.noModelsAvailable")}</div>
-          ) : (
-            modelOptions.map((modelName) => (
-              <label key={modelName} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={models.includes(modelName)}
-                  onChange={() => onModelsChange(toggleString(models, modelName))}
-                />
-                <span className="font-mono text-xs">{modelName}</span>
-              </label>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function UsageBox({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border px-3 py-2">
@@ -798,51 +504,12 @@ function BillingSourcesEditor({ sources, subscriptions, language, onChange }: { 
   </div>
 }
 
-function FieldLabel({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="space-y-2 block text-sm">
-      <span className="font-medium">{label}</span>
-      {children}
-    </label>
-  )
-}
-
-function modelOptionsForChannels(catalog: UserChannelCatalog[], channelIds: number[], selectedModels: string[]) {
-  const modelSet = new Set<string>(selectedModels)
-  for (const channelId of channelIds) {
-    const channel = catalog.find((item) => item.id === channelId)
-    if (!channel) {
-      continue
-    }
-    for (const modelName of channel.models) {
-      modelSet.add(modelName)
-    }
-  }
-  return Array.from(modelSet).sort()
-}
-
-function toggleString(items: string[], item: string) {
-  return items.includes(item) ? items.filter((value) => value !== item) : [...items, item]
-}
-
 function channelName(catalog: UserChannelCatalog[], id: number) {
   return catalog.find((channel) => channel.id === id)?.name || ""
 }
 
 function channelNames(catalog: UserChannelCatalog[], ids: number[]) {
   return ids.map((id) => channelName(catalog, id) || `#${id}`)
-}
-
-function formatMultiplier(value: string | number) {
-  const parsed = Number(value || 0)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed.toLocaleString("en-US", { maximumFractionDigits: 4 }) : "1"
-}
-
-function parseCSV(value: string) {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean)
 }
 
 function stringArray(value: unknown): string[] {
@@ -909,34 +576,6 @@ function formatInteger(value: number) {
 function formatCost(value: string | number, currency: string) {
   const parsed = Number(value || 0)
   return formatCurrency((Number.isFinite(parsed) ? parsed : 0).toFixed(6), currency)
-}
-
-function parseQuotaLimit(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return "0"
-  }
-  const parsed = Number(trimmed)
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    return "0"
-  }
-  return trimmed
-}
-
-function quotaInputValue(value: string | number) {
-  const parsed = Number(value || 0)
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return ""
-  }
-  return String(value)
-}
-
-function dateTimeLocalValue(value?: string | null) {
-  if (!value) return ""
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ""
-  const offset = date.getTimezoneOffset() * 60_000
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16)
 }
 
 function formatQuotaRemaining(apiKey: APIKey, unlimitedLabel: string, currency: string) {

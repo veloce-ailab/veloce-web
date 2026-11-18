@@ -16,6 +16,7 @@ import ModelCatalog from "./pages/ModelCatalog"
 import SettingsWorkspace from "./pages/SettingsWorkspace"
 import Wallet from "./pages/Wallet"
 import APIKeys from "./pages/APIKeys"
+import TokenAuthorize from "./pages/TokenAuthorize"
 import Plugins from "./pages/Plugins"
 import PluginMarket from "./pages/PluginMarket"
 import PluginSettingsPage from "./pages/PluginSettingsPage"
@@ -36,6 +37,7 @@ import type { TranslationKey } from "./lib/i18n"
 import type { PublicSettings } from "./lib/public-settings"
 import { withPublicSettingsDefaults } from "./lib/public-settings"
 import { canAccessAdminArea, type AdminArea } from "./lib/roles"
+import { resolvePostLoginPath } from "./lib/desktop-authorize"
 
 const queryClient = new QueryClient()
 
@@ -267,7 +269,7 @@ function App() {
     if (token) {
       localStorage.setItem("token", token)
       localStorage.removeItem("referral_code")
-      window.history.replaceState(null, "", "/dashboard")
+      window.history.replaceState(null, "", resolvePostLoginPath())
     }
   }, [])
 
@@ -283,6 +285,7 @@ function App() {
               <Route path="/" element={<PageTransition><Home /></PageTransition>} />
               <Route path="/setup" element={<PageTransition><Setup /></PageTransition>} />
               <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
+              <Route path="/authorize" element={<PageTransition><TokenAuthorize /></PageTransition>} />
               <Route path="/models" element={<PageTransition><ModelCatalog /></PageTransition>} />
               <Route path="/status" element={<PageTransition><StatusPage /></PageTransition>} />
               <Route path="/about" element={<PageTransition><PublicContent kind="about" /></PageTransition>} />
